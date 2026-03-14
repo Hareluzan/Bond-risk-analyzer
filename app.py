@@ -77,7 +77,7 @@ class AdvancedBondAnalyzer:
     def get_score_breakdown(self):
         w = self.get_weights()
         rows = [
-            {"פרמטר": "תשואה לפדיון (YTM)",        "ערך גולמי": f"{self.ytm}%", "ציון": self.score_ytm(), "משקל": f"{int(w['ytm']*100)}%"},
+            {"פרמטר": "תשואה לפדיון (YTM)", "ערך גולמי": f"{self.ytm}%", "ציון": self.score_ytm(), "משקל": f"{int(w['ytm']*100)}%"},
             {"פרמטר": "מח\"מ", "ערך גולמי": f"{self.duration} שנים", "ציון": self.score_duration(), "משקל": f"{int(w['duration']*100)}%"},
             {"פרמטר": "דירוג אשראי", "ערך גולמי": self.rating, "ציון": self.score_rating(), "משקל": f"{int(w['rating']*100)}%"},
             {"פרמטר": "חוב נטו / EBITDA", "ערך גולמי": f"{round(self.net_debt_ebitda,2)}x", "ציון": self.score_net_debt_ebitda(), "משקל": f"{int(w['nd_ebitda']*100)}%"},
@@ -105,8 +105,9 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def analyze_pdf_with_ai(text):
-    # שימוש בקידומת המלאה models/ כדי למנוע שגיאת 404
-    model = genai.GenerativeModel('models/gemini-1.5-flash')
+    # שימוש בגרסת v1 היציבה
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
     prompt = """
     אנליסט פיננסי: חלץ מהטקסט את הנתונים הבאים בפורמט JSON בלבד.
     "Total_Debt", "Cash", "EBITDA", "Current_Assets", "Current_Liabilities", "Operating_Profit", "Interest_Expense".
@@ -114,12 +115,13 @@ def analyze_pdf_with_ai(text):
     טקסט:
     """ + text[:30000]
     
+    # הוספת הוראה למערכת להשתמש ב-API היציב
     response = model.generate_content(prompt)
     clean_text = response.text.replace("```json", "").replace("```", "").strip()
     return json.loads(clean_text)
 
 # ============================================================
-# שלב 3: ויזואליזציה (אותו קוד גרפים)
+# שלב 3: ויזואליזציה
 # ============================================================
 def create_gauge_chart(score):
     fig = go.Figure(go.Indicator(
@@ -202,6 +204,7 @@ def main():
                     analyzer = AdvancedBondAnalyzer(ytm, duration, rating, nd, cr, cov)
                     _render_results(analyzer, analyzer.calculate_final_score(), nd, cr, cov, "ניתוח PDF")
                 except Exception as e:
+                    # אם עדיין יש שגיאה, בוא ננסה לראות בדיוק מה ה-API אומר לנו
                     st.error(f"שגיאה: {e}")
 
     with tab_manual:
