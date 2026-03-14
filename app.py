@@ -105,8 +105,8 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def analyze_pdf_with_ai(text):
-    # שינוי המודל לשם גנרי ויציב יותר
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # שימוש בקידומת המלאה models/ כדי למנוע שגיאת 404
+    model = genai.GenerativeModel('models/gemini-1.5-flash')
     prompt = """
     אנליסט פיננסי: חלץ מהטקסט את הנתונים הבאים בפורמט JSON בלבד.
     "Total_Debt", "Cash", "EBITDA", "Current_Assets", "Current_Liabilities", "Operating_Profit", "Interest_Expense".
@@ -119,7 +119,7 @@ def analyze_pdf_with_ai(text):
     return json.loads(clean_text)
 
 # ============================================================
-# שלב 3: ויזואליזציה
+# שלב 3: ויזואליזציה (אותו קוד גרפים)
 # ============================================================
 def create_gauge_chart(score):
     fig = go.Figure(go.Indicator(
@@ -170,7 +170,6 @@ def main():
     with st.sidebar:
         st.header("נתוני שוק")
         ytm = st.number_input("תשואה לפדיון (%)", value=4.5, format="%.2f")
-        # תמיכה בנקודה עשרונית במח"מ
         duration = st.number_input("מח\"מ (שנים)", value=3.0, step=0.01, format="%.2f")
         rating = st.selectbox("דירוג אשראי", ['AAA','AA','A','BBB','BB','B','CCC','CC','C','D','NR'], index=3)
         st.divider()
@@ -196,18 +195,9 @@ def main():
                     ai_data = analyze_pdf_with_ai(text)
                     st.success("הנתונים חולצו!")
                     
-                    # חישוב יחסים על בסיס נתוני ה-AI
-                    total_debt = ai_data.get("Total_Debt", 0)
-                    cash = ai_data.get("Cash", 0)
-                    ebitda = ai_data.get("EBITDA", 1)
-                    curr_assets = ai_data.get("Current_Assets", 0)
-                    curr_liab = ai_data.get("Current_Liabilities", 1)
-                    op_profit = ai_data.get("Operating_Profit", 0)
-                    int_exp = ai_data.get("Interest_Expense", 1)
-                    
-                    nd = (total_debt - cash) / ebitda if ebitda > 0 else 99
-                    cr = curr_assets / curr_liab if curr_liab > 0 else 0
-                    cov = op_profit / int_exp if int_exp > 0 else 99
+                    nd = (ai_data.get("Total_Debt", 0) - ai_data.get("Cash", 0)) / ai_data.get("EBITDA", 1) if ai_data.get("EBITDA", 0) > 0 else 99
+                    cr = ai_data.get("Current_Assets", 0) / ai_data.get("Current_Liabilities", 1) if ai_data.get("Current_Liabilities", 0) > 0 else 0
+                    cov = ai_data.get("Operating_Profit", 0) / ai_data.get("Interest_Expense", 1) if ai_data.get("Interest_Expense", 0) > 0 else 99
                     
                     analyzer = AdvancedBondAnalyzer(ytm, duration, rating, nd, cr, cov)
                     _render_results(analyzer, analyzer.calculate_final_score(), nd, cr, cov, "ניתוח PDF")
