@@ -71,14 +71,14 @@ class AdvancedBondAnalyzer:
 # --- פונקציות ליצירת גרפים יפים (Plotly) ---
 def create_gauge_chart(score):
     fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
+        mode = "gauge", # התיקון כאן: הסרנו את התוספת של ה-+number כדי למנוע כפילות
         value = score,
         domain = {'x': [0, 1], 'y': [0, 1]},
         title = {'text': "מדד סיכון משוקלל", 'font': {'size': 24}},
         gauge = {
             'axis': {'range': [1, 5], 'tickwidth': 1, 'tickcolor': "darkblue"},
             'bar': {'color': "rgba(0,0,0,0)"},
-            'bgcolor': "white",
+            'bgcolor': "rgba(0,0,0,0)", # שינינו לשקוף כדי שייראה פרימיום במסך כהה
             'borderwidth': 2,
             'bordercolor': "gray",
             'steps': [
@@ -87,7 +87,8 @@ def create_gauge_chart(score):
                 {'range': [3.8, 5], 'color': "#EF553B"}],
         }
     ))
-    fig.add_annotation(x=0.5, y=0.4, text=f"<b>{score}</b>", showarrow=False, font=dict(size=40))
+    # המספר הגדול שמופיע במרכז במקום הראייה הכפולה
+    fig.add_annotation(x=0.5, y=0.3, text=f"<b>{score}</b>", showarrow=False, font=dict(size=45))
     fig.update_layout(height=350, margin=dict(l=20, r=20, t=50, b=20))
     return fig
 
@@ -110,12 +111,13 @@ def create_radar_chart(analyzer):
     fig.update_layout(
         polar=dict(
             radialaxis=dict(visible=True, range=[0, 5], tickfont=dict(size=10)),
-            # תיקון הבאג: הוסרה הפקודה direction='rtl'
-            angularaxis=dict(tickfont=dict(size=14)) 
+            angularaxis=dict(tickfont=dict(size=14))
         ),
         showlegend=False,
         height=400,
-        margin=dict(l=40, r=40, t=40, b=40)
+        margin=dict(l=40, r=40, t=40, b=40),
+        paper_bgcolor="rgba(0,0,0,0)", # גם כאן עשינו רקע שקוף למראה נקי
+        plot_bgcolor="rgba(0,0,0,0)"
     )
     return fig
 
