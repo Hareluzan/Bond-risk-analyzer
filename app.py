@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 
-# --- שלב 1: מנוע האנליזה הפיננסית המשודרג ---
+# --- שלב 1: מנוע האנליזה הפיננסית ---
 class AdvancedBondAnalyzer:
     def __init__(self, ytm, duration, rating, net_debt_ebitda, current_ratio, coverage_ratio):
         self.ytm = ytm
@@ -67,66 +68,107 @@ class AdvancedBondAnalyzer:
         
         return round(final_score, 2)
 
+# --- פונקציות ליצירת גרפים יפים (Plotly) ---
+def create_gauge_chart(score):
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = score,
+        domain = {'x': [0, 1], 'y': [0, 1]},
+        title = {'text': "מדד סיכון משוקלל", 'font': {'size': 24}},
+        gauge = {
+            'axis': {'range': [1, 5], 'tickwidth': 1, 'tickcolor': "darkblue"},
+            'bar': {'color': "rgba(0,0,0,0)"}, # העלמת הפס הרגיל כדי להראות מחט
+            'bgcolor': "white",
+            'borderwidth': 2,
+            'bordercolor': "gray",
+            'steps': [
+                {'range': [1, 2.5], 'color': "#00cc96"}, # ירוק
+                {'range': [2.5, 3.8], 'color': "#FFA15A"}, # כתום/צהוב
+                {'range': [3.8, 5], 'color': "#EF553B"}], # אדום
+        }
+    ))
+    # הוספת "מחט" (Needle) פשוטה
+    fig.add_annotation(x=0.5, y=0.4, text=f"<b>{score}</b>", showarrow=False, font=dict(size=40))
+    fig.update_layout(height=350, margin=dict(l=20, r=20, t=50, b=20))
+    return fig
+
+def create_radar_chart(analyzer):
+    categories = ['תשואה', 'מח״מ', 'דירוג', 'מינוף (Net Debt/EBITDA)', 'נזילות (יחס שוטף)', 'כיסוי ריבית']
+    # משיכת הציונים הפנימיים (1-5)
+    values = [analyzer.score_ytm(), analyzer.score_duration(), analyzer.score_rating(),
+              analyzer.score_net_debt_ebitda(), analyzer.score_current_ratio(), analyzer.score_coverage()]
+    
+    # סגירת המעגל בגרף
+    values.append(values[0])
+    categories.append(categories[0])
+
+    fig = go.Figure(data=go.Scatterpolar(
+        r=values,
+        theta=categories,
+        fill='toself',
+        fillcolor='rgba(99, 110, 250, 0.5)',
+        line=dict(color='#636EFA')
+    ))
+
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(visible=True, range=[0, 5], tickfont=dict(size=10)),
+            angularaxis=dict(tickfont=dict(size=14, direction='rtl'))
+        ),
+        showlegend=False,
+        height=400,
+        margin=dict(l=40, r=40, t=40, b=40)
+    )
+    return fig
+
 # --- שלב 2: ממשק המשתמש (Dashboard) ---
 def main():
-    st.set_page_config(page_title="מערכת מתקדמת לניתוח אג״ח", layout="centered")
+    st.set_page_config(page_title="מערכת מתקדמת לניתוח אג״ח", layout="wide") # שינינו ל-wide למסך רחב ומקצועי
     
-    # קוד להפיכת האתר לימין-לשמאל (RTL) - מותאם לעברית
+    # קוד להפיכת האתר לימין-לשמאל (RTL)
     st.markdown(
         """
         <style>
-        .stApp {
-            direction: rtl;
-        }
-        p, div, input, label, h1, h2, h3, h4, h5, h6, span {
-            text-align: right !important;
-        }
-        div[data-testid="stForm"] {
-            border: 1px solid #ddd;
-            padding: 20px;
-            border-radius: 10px;
-        }
-        .stAlert > div {
-            direction: rtl;
-            text-align: right;
-        }
+        .stApp { direction: rtl; }
+        p, div, input, label, h1, h2, h3, h4, h5, h6, span { text-align: right !important; }
+        div[data-testid="stSidebar"] { direction: rtl; border-left: 1px solid #ddd; }
+        div[data-testid="metric-container"] { border: 1px solid #e6e6e6; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
+        .stAlert > div { direction: rtl; text-align: right; }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-    st.title("📊 מערכת Pro לניתוח סיכוני אג״ח")
-    st.write("מערכת משולבת לניתוח נתוני שוק ויחסים פיננסיים מדוחות כספיים.")
-
-    st.header("1. נתוני שוק")
-    col1, col2, col3 = st.columns(3)
-    with col1:
+    # -- תפריט צד (Sidebar) לנתוני שוק --
+    with st.sidebar:
+        st.image("https://cdn-icons-png.flaticon.com/512/2474/2474069.png", width=100) # אייקון פיננסי יפה
+        st.title("נתוני שוק (Market)")
+        st.write("הזן את נתוני האיגרת מהבורסה:")
         ytm = st.number_input("תשואה לפדיון (%)", value=4.5, step=0.1)
-    with col2:
         duration = st.number_input("מח״מ (שנים)", value=3.0, step=0.1)
-    with col3:
         rating = st.selectbox("דירוג אשראי", ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D', 'NR'], index=3)
 
+    # -- המסך המרכזי --
+    st.title("📊 מערכת Pro לניתוח סיכוני אג״ח")
+    st.write("ברוך הבא למערכת הניתוח. המערכת משלבת נתוני שוק חברתיים עם ניתוח פונדמנטלי של הדוחות הכספיים.")
+    
     st.write("---")
-    st.header("2. ניתוח דוחות כספיים")
+    st.subheader("ניתוח דוחות כספיים (Fundamentals)")
     
     # יצירת תבנית להורדה
     template_data = {
         "Parameter": ["Total_Debt", "Cash", "EBITDA", "Current_Assets", "Current_Liabilities", "Operating_Profit", "Interest_Expense"],
-        "Value": [1000, 200, 150, 500, 400, 120, 30] # נתוני דוגמה
+        "Value": [1000, 200, 150, 500, 400, 120, 30]
     }
     df_template = pd.DataFrame(template_data)
     csv = df_template.to_csv(index=False).encode('utf-8-sig')
     
-    st.write("הורד את תבנית הנתונים, עדכן את המספרים מתוך הדוח הכספי של החברה, והעלה אותה חזרה לכאן.")
-    st.download_button(
-        label="📥 הורד תבנית נתונים",
-        data=csv,
-        file_name='financial_template.csv',
-        mime='text/csv',
-    )
-
-    uploaded_file = st.file_uploader("העלה את הקובץ המלא (CSV) לחישוב אוטומטי", type=["csv"])
+    col_upload, col_download = st.columns([2, 1])
+    with col_download:
+        st.write("<br>", unsafe_allow_html=True)
+        st.download_button(label="📥 הורד תבנית נתונים (CSV)", data=csv, file_name='financial_template.csv', mime='text/csv')
+    with col_upload:
+        uploaded_file = st.file_uploader("העלה את קובץ הדוח הכספי (CSV) לכאן:", type=["csv"])
 
     if uploaded_file is not None:
         try:
@@ -142,34 +184,47 @@ def main():
             operating_profit = data_dict.get("Operating_Profit", 0)
             interest_expense = data_dict.get("Interest_Expense", 1)
             
-            # הנוסחאות
             net_debt_ebitda = (total_debt - cash) / ebitda if ebitda > 0 else 99
             current_ratio = current_assets / current_liabilities if current_liabilities > 0 else 0
             coverage_ratio = operating_profit / interest_expense if interest_expense > 0 else 99
-
-            st.success("הנתונים נותחו בהצלחה! הנה היחסים הפיננסיים שחולצו:")
-            
-            metric_col1, metric_col2, metric_col3 = st.columns(3)
-            metric_col1.metric("חוב נטו ל-EBITDA", round(net_debt_ebitda, 2))
-            metric_col2.metric("יחס שוטף", round(current_ratio, 2))
-            metric_col3.metric("יחס כיסוי ריבית", round(coverage_ratio, 2))
 
             # הפעלת מנוע האנליזה
             analyzer = AdvancedBondAnalyzer(ytm, duration, rating, net_debt_ebitda, current_ratio, coverage_ratio)
             final_score = analyzer.calculate_final_score()
 
             st.write("---")
-            st.subheader("שקלול סופי (שוק + דוחות כספיים):")
+            st.subheader("תוצאות הניתוח")
             
-            if final_score <= 2.0:
-                st.success(f"ציון סיכון משוקלל: {final_score} - רמת סיכון נמוכה (השקעה סולידית).")
-            elif final_score <= 3.5:
-                st.warning(f"ציון סיכון משוקלל: {final_score} - רמת סיכון בינונית (חברה סבירה, דורש מעקב).")
-            else:
-                st.error(f"ציון סיכון משוקלל: {final_score} - רמת סיכון גבוהה (אזהרת חדלות פירעון).")
+            # הצגת מדדים יפים בשורה
+            m1, m2, m3 = st.columns(3)
+            m1.metric("חוב נטו ל-EBITDA", round(net_debt_ebitda, 2), "מעל 4 = מסוכן" if net_debt_ebitda > 4 else "תקין", delta_color="inverse")
+            m2.metric("יחס שוטף (נזילות)", round(current_ratio, 2), "מתחת ל-1 = סכנה" if current_ratio < 1 else "תקין")
+            m3.metric("יחס כיסוי ריבית", round(coverage_ratio, 2), "מתחת ל-1.5 = חלש" if coverage_ratio < 1.5 else "תקין")
+
+            st.write("<br>", unsafe_allow_html=True)
+            
+            # חלוקה ל-2 עמודות עבור הגרפים
+            graph_col1, graph_col2 = st.columns(2)
+            
+            with graph_col1:
+                st.markdown("### הציון הסופי")
+                fig_gauge = create_gauge_chart(final_score)
+                st.plotly_chart(fig_gauge, use_container_width=True)
                 
+                if final_score <= 2.5:
+                    st.success("✅ החברה יציבה והסיכון נמוך יחסית (השקעה סולידית).")
+                elif final_score <= 3.8:
+                    st.warning("⚠️ רמת סיכון בינונית. יש לבחון היטב את תמחור השוק ואת התנאים המאקרו-כלכליים.")
+                else:
+                    st.error("🚨 אזהרת סיכון חמורה! פרופיל פיננסי חלש המעיד על סכנת חדלות פירעון גבוהה (אג״ח זבל).")
+
+            with graph_col2:
+                st.markdown("### פרופיל סיכון רב-ממדי (1 = בטוח, 5 = מסוכן)")
+                fig_radar = create_radar_chart(analyzer)
+                st.plotly_chart(fig_radar, use_container_width=True)
+
         except Exception as e:
-            st.error("הייתה בעיה בקריאת הקובץ. אנא ודא שהשתמשת בתבנית המקורית ולא שינית את שמות הפרמטרים.")
+            st.error(f"הייתה בעיה בקריאת הקובץ. שגיאה: {e}")
 
 if __name__ == "__main__":
     main()
