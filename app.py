@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import io
 
 # --- שלב 1: מנוע האנליזה הפיננסית המשודרג ---
 class AdvancedBondAnalyzer:
@@ -31,7 +30,6 @@ class AdvancedBondAnalyzer:
         return ratings_map.get(self.rating, 5)
 
     def score_net_debt_ebitda(self):
-        # ככל שהיחס נמוך יותר, החברה בריאה יותר
         if self.net_debt_ebitda <= 2.0: return 1
         elif self.net_debt_ebitda <= 3.5: return 2
         elif self.net_debt_ebitda <= 5.0: return 3
@@ -39,7 +37,6 @@ class AdvancedBondAnalyzer:
         else: return 5
 
     def score_current_ratio(self):
-        # יחס שוטף - ככל שגבוה יותר (מעל 1), נזיל ובטוח יותר
         if self.current_ratio >= 2.0: return 1
         elif self.current_ratio >= 1.5: return 2
         elif self.current_ratio >= 1.0: return 3
@@ -54,7 +51,6 @@ class AdvancedBondAnalyzer:
         else: return 5
 
     def calculate_final_score(self):
-        # משקולות מעודכנים (נותנים הרבה משקל לדוחות הכספיים)
         w_ytm = 0.20
         w_rating = 0.15
         w_duration = 0.15
@@ -74,6 +70,31 @@ class AdvancedBondAnalyzer:
 # --- שלב 2: ממשק המשתמש (Dashboard) ---
 def main():
     st.set_page_config(page_title="מערכת מתקדמת לניתוח אג״ח", layout="centered")
+    
+    # קוד להפיכת האתר לימין-לשמאל (RTL) - מותאם לעברית
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            direction: rtl;
+        }
+        p, div, input, label, h1, h2, h3, h4, h5, h6, span {
+            text-align: right !important;
+        }
+        div[data-testid="stForm"] {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .stAlert > div {
+            direction: rtl;
+            text-align: right;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.title("📊 מערכת Pro לניתוח סיכוני אג״ח")
     st.write("מערכת משולבת לניתוח נתוני שוק ויחסים פיננסיים מדוחות כספיים.")
 
@@ -99,7 +120,7 @@ def main():
     
     st.write("הורד את תבנית הנתונים, עדכן את המספרים מתוך הדוח הכספי של החברה, והעלה אותה חזרה לכאן.")
     st.download_button(
-        label="📥 הורד תבנית נתונים (קובץ CSV לאקסל)",
+        label="📥 הורד תבנית נתונים",
         data=csv,
         file_name='financial_template.csv',
         mime='text/csv',
@@ -115,7 +136,7 @@ def main():
             # שליפת נתונים וחישוב היחסים הפיננסיים
             total_debt = data_dict.get("Total_Debt", 0)
             cash = data_dict.get("Cash", 0)
-            ebitda = data_dict.get("EBITDA", 1) # מניעת חלוקה באפס
+            ebitda = data_dict.get("EBITDA", 1) 
             current_assets = data_dict.get("Current_Assets", 0)
             current_liabilities = data_dict.get("Current_Liabilities", 1)
             operating_profit = data_dict.get("Operating_Profit", 0)
@@ -128,7 +149,6 @@ def main():
 
             st.success("הנתונים נותחו בהצלחה! הנה היחסים הפיננסיים שחולצו:")
             
-            # הצגת שעונים / מדדים יפים
             metric_col1, metric_col2, metric_col3 = st.columns(3)
             metric_col1.metric("חוב נטו ל-EBITDA", round(net_debt_ebitda, 2))
             metric_col2.metric("יחס שוטף", round(current_ratio, 2))
