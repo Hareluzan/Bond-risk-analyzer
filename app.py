@@ -151,7 +151,7 @@ def create_radar_chart(analyzer):
     return fig
 
 def create_comparison_bar(bonds_data):
-    """גרף השוואה בין מספר אג'חות"""
+    """גרף השוואה בין אג״חים"""
     names  = [b['name']  for b in bonds_data]
     scores = [b['score'] for b in bonds_data]
     colors = ['#00cc96' if s <= 2.5 else '#FFA15A' if s <= 3.8 else '#EF553B' for s in scores]
