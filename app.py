@@ -6,7 +6,7 @@ import pdfplumber
 from openai import OpenAI
 
 # ============================================================
-# שלב 1: מנוע האנליזה הפיננסית המקורי (הוחזר במלואו!)
+# שלב 1: מנוע האנליזה הפיננסית (המקורי והמלא)
 # ============================================================
 class AdvancedBondAnalyzer:
     def __init__(self, ytm, duration, rating, net_debt_ebitda, current_ratio, coverage_ratio):
@@ -86,42 +86,71 @@ class AdvancedBondAnalyzer:
         return pd.DataFrame(rows)
 
 # ============================================================
-# שלב 2: סריקת PDF חכמה ומנוע AI 
+# שלב 2: שאיבת טקסט חכמה (ידנית או אוטומטית)
 # ============================================================
-def smart_extract_text(pdf_file):
-    extracted_text = ""
-    keywords = ["מאזן", "מאוחד", "רווח והפסד", "תזרים מזומנים", "התחייבויות", "נכסים שוטפים"]
+def extract_target_pages(pdf_file, start_page=None, end_page=None):
+    text = ""
     with pdfplumber.open(pdf_file) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text() or ""
-            # סורק רק דפים שמכילים מילות מפתח פיננסיות כדי לחסוך זמן וקריסות
-            if any(key in page_text for key in keywords):
-                extracted_text += page_text + "\n"
-            if len(extracted_text) > 400000: break 
-    return extracted_text
+        total_pages = len(pdf.pages)
+        
+        # אם המשתמש הזין טווח עמודים (כמו 67 עד 90)
+        if start_page and end_page:
+            start_idx = max(0, int(start_page) - 1)
+            end_idx = min(total_pages, int(end_page))
+            pages_to_scan = range(start_idx, end_idx)
+        else:
+            # זיהוי אוטומטי חכם (מתחשב בטקסט עברי ישר והפוך)
+            pages_to_extract = set()
+            keywords = ["דוח על המצב הכספי", "מאזן", "דוח רווח והפסד", "תזרימי מזומנים", "דוח הדירקטוריון"]
+            search_terms = keywords + [kw[::-1] for kw in keywords] # הוספת מילים הפוכות בגלל RTL
+            
+            for i, page in enumerate(pdf.pages):
+                page_text = page.extract_text() or ""
+                if any(term in page_text for term in search_terms):
+                    pages_to_extract.update([i, i+1, i+2]) # שואב את העמוד שנמצא ועוד 2 עמודים קדימה
+            
+            pages_to_scan = sorted([p for p in pages_to_extract if p < total_pages])
+            
+            # אם לא זוהה כלום, שואב קצוות כברירת מחדל
+            if not pages_to_scan:
+                pages_to_scan = list(range(min(20, total_pages))) + list(range(max(0, total_pages-30), total_pages))
+                pages_to_scan = sorted(list(set(pages_to_scan)))
+
+        for i in pages_to_scan:
+            extracted = pdf.pages[i].extract_text()
+            if extracted:
+                text += f"--- PAGE {i+1} ---\n{extracted}\n"
+                
+    return text
 
 def analyze_report_with_ai(text):
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     prompt = """
-    אנליסט פיננסי: חלץ נתונים מאוחדים (Consolidated) לתקופה האחרונה.
-    1. Total_Debt: סכום חוב פיננסי (בנקים + אג"ח + חכירה).
-    2. EBITDA: רווח תפעולי + פחת. אם אין פחת, הערך שמרנית (Operating_Profit * 1.1). לעולם אל תחזיר 0.
-    3. Current_Assets: סך נכסים שוטפים (כולל מלאי ולקוחות).
-    4. Interest_Expense: הוצאות מימון נטו (חיובי).
+    אנליסט פיננסי: קרא את הטקסט שחולץ מהדוח הכספי וחלץ נתונים מאוחדים (Consolidated) לתקופה האחרונה.
+    שים לב שהטקסט בעברית עלול להיות הפוך משמאל לימין. עליך למצוא את המספרים הנכונים המשויכים לסעיפים הבאים.
     
-    החזר JSON בלבד:
+    1. Total_Debt: סך חוב נושא ריבית (אשראי בנקים + אג"ח + חלויות שוטפות + חכירה).
+    2. EBITDA: רווח תפעולי (Operating Profit) + פחת. אם אין פחת, הערך שמרנית כרווח תפעולי כפול 1.15. אל תחזיר 0 אם יש רווח.
+    3. Current_Assets: סך נכסים שוטפים מתוך המאזן (מלאי + לקוחות + מזומן וכו').
+    4. Interest_Expense: הוצאות מימון נטו (החזר מספר חיובי).
+    
+    החזר רק JSON נקי:
     {"Company_Name": "", "Total_Debt": 0, "Cash": 0, "EBITDA": 0, "Current_Assets": 0, "Current_Liabilities": 0, "Operating_Profit": 0, "Interest_Expense": 0}
+    
+    טקסט:
     """ + text
     
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "system", "content": "Financial Expert"}, {"role": "user", "content": prompt}],
-        response_format={ "type": "json_object" }
+        messages=[{"role": "system", "content": "You are a professional Israeli financial analyst."}, 
+                  {"role": "user", "content": prompt}],
+        response_format={ "type": "json_object" },
+        temperature=0.1
     )
     return json.loads(response.choices[0].message.content)
 
 # ============================================================
-# שלב 3: ויזואליזציה (הגרפים המקוריים הוחזרו!)
+# שלב 3: ויזואליזציה (גרפים)
 # ============================================================
 def create_gauge_chart(score):
     fig = go.Figure(go.Indicator(
@@ -195,33 +224,51 @@ def main():
 
     with tab_ai:
         pdf_file = st.file_uploader("העלה את הדוח הכספי של החברה לכאן (קובץ PDF)", type=["pdf"])
+        
+        # הממשק החדש לבחירת עמודים ידנית
+        use_manual_pages = st.checkbox("🎯 הגדר טווח עמודים ידנית (מומלץ לדוחות ארוכים כגון דלתא גליל)")
+        start_p, end_p = None, None
+        
+        if use_manual_pages:
+            col_p1, col_p2 = st.columns(2)
+            start_p = col_p1.number_input("התחל מקריאת עמוד:", min_value=1, value=67)
+            end_p = col_p2.number_input("סיים בקריאת עמוד:", min_value=1, value=90)
+            
         if pdf_file:
-            with st.spinner("🧠 ה-AI קורא את הדוח ומחלץ נתונים פיננסיים (זה לוקח כ-15-30 שניות)..."):
-                try:
-                    text = smart_extract_text(pdf_file)
-                    ai_data = analyze_report_with_ai(text)
-                    st.success("✅ הנתונים חולצו בהצלחה מתוך הדוח!")
-                    
-                    with st.expander("לחץ כאן כדי לראות את המספרים הגולמיים שה-AI מצא"):
-                        st.json(ai_data)
-                    
-                    total_debt = ai_data.get("Total_Debt", 0)
-                    cash = ai_data.get("Cash", 0)
-                    ebitda = ai_data.get("EBITDA", 1) or 1
-                    curr_assets = ai_data.get("Current_Assets", 0)
-                    curr_liab = ai_data.get("Current_Liabilities", 1) or 1
-                    op_profit = ai_data.get("Operating_Profit", 0)
-                    int_exp = ai_data.get("Interest_Expense", 1) or 1
-                    
-                    nd = (total_debt - cash) / ebitda if ebitda > 0 else 99
-                    cr = curr_assets / curr_liab if curr_liab > 0 else 0
-                    cov = op_profit / int_exp if int_exp > 0 else 99
-                    
-                    analyzer = AdvancedBondAnalyzer(ytm, duration, rating, nd, cr, cov)
-                    _render_results(analyzer, analyzer.calculate_final_score(), nd, cr, cov, ai_data.get("Company_Name", "דוח מנותח"))
-                    
-                except Exception as e:
-                    st.error(f"❌ שגיאה בניתוח: {str(e)}")
+            if st.button("🚀 נתח דוח באמצעות AI", type="primary"):
+                with st.spinner("🧠 ה-AI קורא את הדוח ומחלץ נתונים פיננסיים..."):
+                    try:
+                        text = extract_target_pages(pdf_file, start_p, end_p)
+                        
+                        if not text.strip():
+                            st.error("❌ לא הצלחתי לקרוא טקסט מהעמודים שנבחרו.")
+                        else:
+                            ai_data = analyze_report_with_ai(text)
+                            st.success("✅ הנתונים חולצו בהצלחה!")
+                            
+                            with st.expander("לחץ כאן כדי לראות את המספרים הגולמיים שה-AI מצא"):
+                                st.json(ai_data)
+                            
+                            total_debt = ai_data.get("Total_Debt", 0)
+                            cash = ai_data.get("Cash", 0)
+                            ebitda = ai_data.get("EBITDA", 1) or 1
+                            curr_assets = ai_data.get("Current_Assets", 0)
+                            curr_liab = ai_data.get("Current_Liabilities", 1) or 1
+                            op_profit = ai_data.get("Operating_Profit", 0)
+                            int_exp = ai_data.get("Interest_Expense", 1) or 1
+                            
+                            nd = (total_debt - cash) / ebitda if ebitda > 0 else 99
+                            cr = curr_assets / curr_liab if curr_liab > 0 else 0
+                            cov = op_profit / int_exp if int_exp > 0 else 99
+                            
+                            analyzer = AdvancedBondAnalyzer(ytm, duration, rating, nd, cr, cov)
+                            
+                            company_name = ai_data.get("Company_Name", "")
+                            display_name = company_name if company_name else "דוח מנותח"
+                            _render_results(analyzer, analyzer.calculate_final_score(), nd, cr, cov, display_name)
+                            
+                    except Exception as e:
+                        st.error(f"❌ שגיאה בניתוח: {str(e)}")
 
     with tab_manual:
         c1, c2 = st.columns(2)
@@ -235,7 +282,7 @@ def main():
             m_op = st.number_input("רווח תפעולי", value=150.0)
             m_int = st.number_input("הוצאות מימון", value=50.0)
         
-        if st.button("🔎 חשב ציון סופי", type="primary"):
+        if st.button("🔎 חשב ציון סופי ידני", type="primary"):
             nd = (m_debt - m_cash) / m_ebitda if m_ebitda > 0 else 99
             cr = m_assets / m_liab if m_liab > 0 else 0
             cov = m_op / m_int if m_int > 0 else 99
