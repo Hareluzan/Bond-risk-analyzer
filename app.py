@@ -77,21 +77,22 @@ class AdvancedBondAnalyzer:
     def get_score_breakdown(self):
         w = self.get_weights()
         rows = [
-            {"פרמטר": "תשואה לפדיון (YTM)",        "ערך גולמי": f"{self.ytm}%",              "ציון (1–5)": self.score_ytm(),             "משקל": f"{int(w['ytm']*100)}%",       "תרומה לציון": round(self.score_ytm()             * w['ytm'],      2)},
-            {"פרמטר": "מח\"מ",                        "ערך גולמי": f"{self.duration} שנים",      "ציון (1–5)": self.score_duration(),        "משקל": f"{int(w['duration']*100)}%",  "תרומה לציון": round(self.score_duration()        * w['duration'], 2)},
-            {"פרמטר": "דירוג אשראי",                 "ערך גולמי": self.rating,                  "ציון (1–5)": self.score_rating(),          "משקל": f"{int(w['rating']*100)}%",    "תרומה לציון": round(self.score_rating()          * w['rating'],   2)},
-            {"פרמטר": "חוב נטו / EBITDA",            "ערך גולמי": f"{round(self.net_debt_ebitda,2)}x", "ציון (1–5)": self.score_net_debt_ebitda(), "משקל": f"{int(w['nd_ebitda']*100)}%","תרומה לציון": round(self.score_net_debt_ebitda() * w['nd_ebitda'],2)},
-            {"פרמטר": "יחס שוטף (נזילות)",           "ערך גולמי": f"{round(self.current_ratio,2)}x",   "ציון (1–5)": self.score_current_ratio(),   "משקל": f"{int(w['current']*100)}%",   "תרומה לציון": round(self.score_current_ratio()   * w['current'],  2)},
-            {"פרמטר": "יחס כיסוי ריבית",             "ערך גולמי": f"{round(self.coverage_ratio,2)}x",  "ציון (1–5)": self.score_coverage(),        "משקל": f"{int(w['coverage']*100)}%",  "תרומה לציון": round(self.score_coverage()        * w['coverage'], 2)},
+            {"פרמטר": "תשואה לפדיון (YTM)",        "ערך גולמי": f"{self.ytm}%", "ציון": self.score_ytm(), "משקל": f"{int(w['ytm']*100)}%"},
+            {"פרמטר": "מח\"מ", "ערך גולמי": f"{self.duration} שנים", "ציון": self.score_duration(), "משקל": f"{int(w['duration']*100)}%"},
+            {"פרמטר": "דירוג אשראי", "ערך גולמי": self.rating, "ציון": self.score_rating(), "משקל": f"{int(w['rating']*100)}%"},
+            {"פרמטר": "חוב נטו / EBITDA", "ערך גולמי": f"{round(self.net_debt_ebitda,2)}x", "ציון": self.score_net_debt_ebitda(), "משקל": f"{int(w['nd_ebitda']*100)}%"},
+            {"פרמטר": "יחס שוטף", "ערך גולמי": f"{round(self.current_ratio,2)}x", "ציון": self.score_current_ratio(), "משקל": f"{int(w['current']*100)}%"},
+            {"פרמטר": "יחס כיסוי ריבית", "ערך גולמי": f"{round(self.coverage_ratio,2)}x", "ציון": self.score_coverage(), "משקל": f"{int(w['coverage']*100)}%"},
         ]
         return pd.DataFrame(rows)
 
 # ============================================================
-# שלב 2: בינה מלאכותית (Gemini) לחילוץ נתונים
+# שלב 2: בינה מלאכותית (Gemini)
 # ============================================================
 def setup_ai():
     try:
-        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        api_key = st.secrets["GEMINI_API_KEY"]
+        genai.configure(api_key=api_key)
         return True
     except Exception:
         return False
@@ -104,150 +105,119 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def analyze_pdf_with_ai(text):
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-pro')
     prompt = """
-    אתה אנליסט פיננסי מומחה. קרא את הטקסט הבא (שנלקח מדוח כספי) וחלץ ממנו את 7 הנתונים הבאים במספרים בלבד.
-    אם לא מצאת נתון מדויק, עשה את ההערכה המושכלת ביותר על בסיס נהלי חשבונאות, או החזר 0.
-    החזר אך ורק פורמט JSON תקין (ללא טקסט מקדים, ללא הסברים, ללא סימני markdown).
-    השתמש בדיוק במפתחות האלה באנגלית:
+    אתה אנליסט פיננסי. חלץ מהטקסט את הנתונים הבאים בפורמט JSON נקי בלבד:
     "Total_Debt", "Cash", "EBITDA", "Current_Assets", "Current_Liabilities", "Operating_Profit", "Interest_Expense".
+    החזר רק את ה-JSON. אם נתון חסר, רשום 0.
+    טקסט:
+    """ + text[:30000]
     
-    הטקסט:
-    """ + text[:35000] # מגביל את כמות הטקסט כדי למנוע עומס
-    
-    response = model.generate_content(prompt)
-    
-    # ניקוי התשובה מסימני קוד כדי לקבל JSON נקי
+    response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.1))
     clean_text = response.text.replace("```json", "").replace("```", "").strip()
     return json.loads(clean_text)
 
 # ============================================================
-# פונקציות תצוגה (גרפים וחישובים קודמים)
+# שלב 3: ויזואליזציה
 # ============================================================
 def create_gauge_chart(score):
     fig = go.Figure(go.Indicator(
         mode="gauge", value=score, domain={'x': [0, 1], 'y': [0, 1]},
         title={'text': "מדד סיכון משוקלל", 'font': {'size': 22}},
-        gauge={'axis': {'range': [1, 5], 'tickwidth': 1, 'tickcolor': "#aaa", 'tickvals': [1, 2, 3, 4, 5], 'ticktext': ['1<br><sub>בטוח</sub>', '2', '3', '4', '5<br><sub>מסוכן</sub>']},
-               'bar': {'color': "rgba(0,0,0,0)"}, 'bgcolor': "rgba(0,0,0,0)", 'borderwidth': 2, 'bordercolor': "gray",
+        gauge={'axis': {'range': [1, 5], 'tickvals': [1, 2, 3, 4, 5], 'ticktext': ['1','2','3','4','5']},
+               'bar': {'color': "rgba(0,0,0,0)"}, 'bgcolor': "rgba(0,0,0,0)", 'borderwidth': 2,
                'steps': [{'range': [1, 2.5], 'color': "#00cc96"}, {'range': [2.5, 3.8], 'color': "#FFA15A"}, {'range': [3.8, 5], 'color': "#EF553B"}]}
     ))
-    fig.add_annotation(x=0.5, y=0.28, text=f"<b>{score}</b>", showarrow=False, font=dict(size=52, color="white"))
-    fig.update_layout(height=350, margin=dict(l=20, r=20, t=60, b=20), paper_bgcolor="rgba(0,0,0,0)")
+    fig.add_annotation(x=0.5, y=0.3, text=f"<b>{score}</b>", showarrow=False, font=dict(size=45, color="white"))
+    fig.update_layout(height=350, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)")
     return fig
 
 def create_radar_chart(analyzer):
-    categories = ['תשואה', 'מח"מ', 'דירוג', 'מינוף\n(Net Debt/EBITDA)', 'נזילות\n(יחס שוטף)', 'כיסוי ריבית']
+    categories = ['תשואה', 'מח"מ', 'דירוג', 'מינוף', 'נזילות', 'כיסוי']
     values = [analyzer.score_ytm(), analyzer.score_duration(), analyzer.score_rating(), analyzer.score_net_debt_ebitda(), analyzer.score_current_ratio(), analyzer.score_coverage()]
-    values_closed = values + [values[0]]; cats_closed = categories + [categories[0]]
-    fig = go.Figure(data=go.Scatterpolar(r=values_closed, theta=cats_closed, fill='toself', fillcolor='rgba(99, 110, 250, 0.4)', line=dict(color='#636EFA', width=2), marker=dict(size=7, color='#636EFA')))
-    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5], tickfont=dict(size=10)), angularaxis=dict(tickfont=dict(size=13))), showlegend=False, height=420, margin=dict(l=50, r=50, t=40, b=40), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+    values += [values[0]]; categories += [categories[0]]
+    fig = go.Figure(data=go.Scatterpolar(r=values, theta=categories, fill='toself', fillcolor='rgba(99, 110, 250, 0.4)', line=dict(color='#636EFA')))
+    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), showlegend=False, height=400, paper_bgcolor="rgba(0,0,0,0)")
     return fig
-
-def compute_ratios(data_dict):
-    net_debt_ebitda = (data_dict["Total_Debt"] - data_dict["Cash"]) / data_dict["EBITDA"] if data_dict.get("EBITDA", 0) > 0 else 99
-    current_ratio = data_dict["Current_Assets"] / data_dict["Current_Liabilities"] if data_dict.get("Current_Liabilities", 0) > 0 else 0
-    coverage_ratio = data_dict["Operating_Profit"] / data_dict["Interest_Expense"] if data_dict.get("Interest_Expense", 0) > 0 else 99
-    return net_debt_ebitda, current_ratio, coverage_ratio
 
 def _render_results(analyzer, final_score, nd_ebitda, curr_ratio, cov_ratio, bond_name):
     st.divider()
-    st.subheader(f"תוצאות הניתוח: {bond_name}")
+    st.subheader(f"תוצאות: {bond_name}")
     m1, m2, m3 = st.columns(3)
-    m1.metric("חוב נטו / EBITDA", round(nd_ebitda, 2), "מעל 4 = מסוכן" if nd_ebitda > 4 else "✅ תקין", delta_color="inverse")
-    m2.metric("יחס שוטף (נזילות)", round(curr_ratio, 2), "מתחת ל-1 = סכנה" if curr_ratio < 1 else "✅ תקין")
-    m3.metric("יחס כיסוי ריבית", round(cov_ratio, 2), "מתחת ל-1.5 = חלש" if cov_ratio < 1.5 else "✅ תקין")
-    st.markdown("<br>", unsafe_allow_html=True)
+    m1.metric("חוב נטו / EBITDA", round(nd_ebitda, 2))
+    m2.metric("יחס שוטף", round(curr_ratio, 2))
+    m3.metric("יחס כיסוי ריבית", round(cov_ratio, 2))
+    
     g1, g2 = st.columns(2)
-    with g1:
-        st.markdown("### ציון סיכון סופי")
-        st.plotly_chart(create_gauge_chart(final_score), use_container_width=True)
-    with g2:
-        st.markdown("### פרופיל סיכון רב-ממדי")
-        st.plotly_chart(create_radar_chart(analyzer), use_container_width=True)
+    with g1: st.plotly_chart(create_gauge_chart(final_score), use_container_width=True)
+    with g2: st.plotly_chart(create_radar_chart(analyzer), use_container_width=True)
+    
+    st.markdown("### פירוט ציונים")
+    st.dataframe(analyzer.get_score_breakdown(), use_container_width=True, hide_index=True)
 
 # ============================================================
 # UI ראשי
 # ============================================================
 def main():
-    st.set_page_config(page_title="מערכת Pro לניתוח אג\"ח", layout="wide", page_icon="📊")
+    st.set_page_config(page_title="מערכת Pro לניתוח אג\"ח", layout="wide")
     st.markdown("""<style>
-    @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap');
-    html, body, [class*="css"] { font-family: 'Heebo', sans-serif !important; }
-    .stApp { direction: rtl; background: #0f1117; color: #e8eaf0; }
-    p, div, input, label, h1, h2, h3, h4, h5, h6, span { text-align: right !important; }
-    div[data-testid="stSidebar"] { direction: rtl; background: #161b27; border-left: 1px solid #2a3045; }
-    div[data-testid="metric-container"] { background: #1c2233; border: 1px solid #2a3045; border-radius: 12px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
-    .stAlert > div { direction: rtl; text-align: right; border-radius: 10px; }
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
-    .stTabs [data-baseweb="tab"] { background: #1c2233; border-radius: 8px 8px 0 0; border: 1px solid #2a3045; color: #aab; font-weight: 600; padding: 8px 20px; }
-    .stTabs [aria-selected="true"] { background: #2563eb !important; color: white !important; border-color: #2563eb !important; }
+    .stApp { direction: rtl; background: #0f1117; color: #e8eaf0; text-align: right; }
+    div[data-testid="stSidebar"] { direction: rtl; text-align: right; }
+    p, div, label, h1, h2, h3, span { text-align: right !important; }
     </style>""", unsafe_allow_html=True)
 
     with st.sidebar:
-        st.title("נתוני שוק")
-        ytm = st.number_input("תשואה לפדיון (%)", value=4.5, step=0.1)
-        duration = st.number_input("מח\"מ (שנים)", value=3.0, step=0.1)
+        st.header("נתוני שוק")
+        ytm = st.number_input("תשואה לפדיון (%)", value=4.5, format="%.2f")
+        # התיקון כאן: הוספת format="%.2f" ו-step=0.01 מאפשרת להזין 4.25
+        duration = st.number_input("מח\"מ (שנים)", value=3.0, step=0.01, format="%.2f")
         rating = st.selectbox("דירוג אשראי", ['AAA','AA','A','BBB','BB','B','CCC','CC','C','D','NR'], index=3)
         st.divider()
-        with st.expander("⚙️ כוונון משקלות"):
-            st.session_state['w_ytm'] = st.slider("תשואה לפדיון", 0, 50, 20) / 100
-            st.session_state['w_rating'] = st.slider("דירוג אשראי", 0, 50, 15) / 100
+        with st.expander("⚙️ משקלות"):
+            st.session_state['w_ytm'] = st.slider("תשואה", 0, 50, 20) / 100
+            st.session_state['w_rating'] = st.slider("דירוג", 0, 50, 15) / 100
             st.session_state['w_duration'] = st.slider("מח\"מ", 0, 50, 15) / 100
-            st.session_state['w_nd_ebitda'] = st.slider("חוב נטו / EBITDA", 0, 50, 25) / 100
-            st.session_state['w_current'] = st.slider("יחס שוטף", 0, 50, 15) / 100
-            st.session_state['w_coverage'] = st.slider("כיסוי ריבית", 0, 50, 10) / 100
+            st.session_state['w_nd_ebitda'] = st.slider("מינוף", 0, 50, 25) / 100
+            st.session_state['w_current'] = st.slider("נזילות", 0, 50, 15) / 100
+            st.session_state['w_coverage'] = st.slider("כיסוי", 0, 50, 10) / 100
 
-    st.markdown("# 📊 מערכת Pro לניתוח סיכוני אג\"ח")
-    
-    # בדיקת חיבור ל-API
+    st.title("📊 מערכת Pro לניתוח סיכוני אג\"ח")
     ai_ready = setup_ai()
-    if not ai_ready:
-        st.warning("⚠️ מערכת ה-AI כרגע מנותקת. ודא שהכנסת מפתח API בהגדרות Streamlit (Secrets).")
-
-    tab_ai, tab_manual = st.tabs(["🤖 ניתוח חכם מדוח PDF (AI)", "✏️ הזנה ידנית"])
+    
+    tab_ai, tab_manual = st.tabs(["🤖 ניתוח PDF חכם (AI)", "✏️ הזנה ידנית"])
 
     with tab_ai:
-        st.markdown('<h3>העלה דוח כספי (PDF) לחילוץ אוטומטי של נתונים</h3>', unsafe_allow_html=True)
-        pdf_file = st.file_uploader("בחר קובץ PDF", type=["pdf"])
-        
+        pdf_file = st.file_uploader("העלה דוח PDF", type=["pdf"])
         if pdf_file and ai_ready:
-            with st.spinner("🧠 קורא את הדוח ומחלץ נתונים בעזרת בינה מלאכותית... (זה עשוי לקחת חצי דקה)"):
+            with st.spinner("מחלץ נתונים..."):
                 try:
                     text = extract_text_from_pdf(pdf_file)
                     ai_data = analyze_pdf_with_ai(text)
-                    
-                    st.success("✅ הנתונים חולצו בהצלחה מהדוח!")
-                    st.json(ai_data) # מציג את המספרים שחולצו
-                    
+                    st.success("הנתונים חולצו!")
                     nd, cr, cov = compute_ratios(ai_data)
                     analyzer = AdvancedBondAnalyzer(ytm, duration, rating, nd, cr, cov)
-                    final_score = analyzer.calculate_final_score()
-                    
-                    _render_results(analyzer, final_score, nd, cr, cov, "אג\"ח מנותח (PDF)")
+                    _render_results(analyzer, analyzer.calculate_final_score(), nd, cr, cov, "ניתוח PDF")
                 except Exception as e:
-                    st.error(f"❌ שגיאה בחילוץ הנתונים מה-PDF. נסה דוח אחר או הזן ידנית. ({e})")
+                    st.error(f"שגיאה: {e}")
 
     with tab_manual:
-        st.markdown('<h3>הזן נתונים ידנית</h3>', unsafe_allow_html=True)
-        col_a, col_b = st.columns(2)
-        with col_a:
-            m_total_debt = st.number_input("סך חוב", value=1200.0)
-            m_cash = st.number_input("מזומן", value=150.0)
-            m_ebitda = st.number_input("EBITDA", value=280.0)
-        with col_b:
-            m_curr_assets = st.number_input("נכסים שוטפים", value=620.0)
-            m_curr_liab = st.number_input("התחייבויות שוטפות", value=390.0)
-            m_op_profit = st.number_input("רווח תפעולי", value=200.0)
-            m_interest = st.number_input("הוצאות ריבית", value=45.0)
-
-        if st.button("🔎 חשב ציון"):
-            nd = (m_total_debt - m_cash) / m_ebitda if m_ebitda > 0 else 99
-            cr = m_curr_assets / m_curr_liab if m_curr_liab > 0 else 0
-            cov = m_op_profit / m_interest if m_interest > 0 else 99
+        c1, c2 = st.columns(2)
+        with c1:
+            m_debt = st.number_input("סך חוב", value=1000.0)
+            m_cash = st.number_input("מזומן", value=200.0)
+            m_ebitda = st.number_input("EBITDA", value=300.0)
+        with c2:
+            m_assets = st.number_input("נכסים שוטפים", value=500.0)
+            m_liab = st.number_input("התחייבויות שוטפות", value=400.0)
+            m_op = st.number_input("רווח תפעולי", value=150.0)
+            m_int = st.number_input("הוצאות ריבית", value=50.0)
+        
+        if st.button("חשב"):
+            nd = (m_debt - m_cash) / m_ebitda if m_ebitda > 0 else 99
+            cr = m_assets / m_liab if m_liab > 0 else 0
+            cov = m_op / m_int if m_int > 0 else 99
             analyzer = AdvancedBondAnalyzer(ytm, duration, rating, nd, cr, cov)
-            final_score = analyzer.calculate_final_score()
-            _render_results(analyzer, final_score, nd, cr, cov, "אג\"ח ידני")
+            _render_results(analyzer, analyzer.calculate_final_score(), nd, cr, cov, "הזנה ידנית")
 
 if __name__ == "__main__":
     main()
