@@ -77,28 +77,25 @@ def create_gauge_chart(score):
         title = {'text': "מדד סיכון משוקלל", 'font': {'size': 24}},
         gauge = {
             'axis': {'range': [1, 5], 'tickwidth': 1, 'tickcolor': "darkblue"},
-            'bar': {'color': "rgba(0,0,0,0)"}, # העלמת הפס הרגיל כדי להראות מחט
+            'bar': {'color': "rgba(0,0,0,0)"},
             'bgcolor': "white",
             'borderwidth': 2,
             'bordercolor': "gray",
             'steps': [
-                {'range': [1, 2.5], 'color': "#00cc96"}, # ירוק
-                {'range': [2.5, 3.8], 'color': "#FFA15A"}, # כתום/צהוב
-                {'range': [3.8, 5], 'color': "#EF553B"}], # אדום
+                {'range': [1, 2.5], 'color': "#00cc96"},
+                {'range': [2.5, 3.8], 'color': "#FFA15A"},
+                {'range': [3.8, 5], 'color': "#EF553B"}],
         }
     ))
-    # הוספת "מחט" (Needle) פשוטה
     fig.add_annotation(x=0.5, y=0.4, text=f"<b>{score}</b>", showarrow=False, font=dict(size=40))
     fig.update_layout(height=350, margin=dict(l=20, r=20, t=50, b=20))
     return fig
 
 def create_radar_chart(analyzer):
     categories = ['תשואה', 'מח״מ', 'דירוג', 'מינוף (Net Debt/EBITDA)', 'נזילות (יחס שוטף)', 'כיסוי ריבית']
-    # משיכת הציונים הפנימיים (1-5)
     values = [analyzer.score_ytm(), analyzer.score_duration(), analyzer.score_rating(),
               analyzer.score_net_debt_ebitda(), analyzer.score_current_ratio(), analyzer.score_coverage()]
     
-    # סגירת המעגל בגרף
     values.append(values[0])
     categories.append(categories[0])
 
@@ -113,7 +110,8 @@ def create_radar_chart(analyzer):
     fig.update_layout(
         polar=dict(
             radialaxis=dict(visible=True, range=[0, 5], tickfont=dict(size=10)),
-            angularaxis=dict(tickfont=dict(size=14, direction='rtl'))
+            # תיקון הבאג: הוסרה הפקודה direction='rtl'
+            angularaxis=dict(tickfont=dict(size=14)) 
         ),
         showlegend=False,
         height=400,
@@ -123,9 +121,8 @@ def create_radar_chart(analyzer):
 
 # --- שלב 2: ממשק המשתמש (Dashboard) ---
 def main():
-    st.set_page_config(page_title="מערכת מתקדמת לניתוח אג״ח", layout="wide") # שינינו ל-wide למסך רחב ומקצועי
+    st.set_page_config(page_title="מערכת מתקדמת לניתוח אג״ח", layout="wide")
     
-    # קוד להפיכת האתר לימין-לשמאל (RTL)
     st.markdown(
         """
         <style>
@@ -139,23 +136,20 @@ def main():
         unsafe_allow_html=True
     )
 
-    # -- תפריט צד (Sidebar) לנתוני שוק --
     with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/2474/2474069.png", width=100) # אייקון פיננסי יפה
+        st.image("https://cdn-icons-png.flaticon.com/512/2474/2474069.png", width=100)
         st.title("נתוני שוק (Market)")
         st.write("הזן את נתוני האיגרת מהבורסה:")
         ytm = st.number_input("תשואה לפדיון (%)", value=4.5, step=0.1)
         duration = st.number_input("מח״מ (שנים)", value=3.0, step=0.1)
         rating = st.selectbox("דירוג אשראי", ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D', 'NR'], index=3)
 
-    # -- המסך המרכזי --
     st.title("📊 מערכת Pro לניתוח סיכוני אג״ח")
-    st.write("ברוך הבא למערכת הניתוח. המערכת משלבת נתוני שוק חברתיים עם ניתוח פונדמנטלי של הדוחות הכספיים.")
+    st.write("ברוך הבא למערכת הניתוח. המערכת משלבת נתוני שוק חיים עם ניתוח פונדמנטלי של הדוחות הכספיים.")
     
     st.write("---")
     st.subheader("ניתוח דוחות כספיים (Fundamentals)")
     
-    # יצירת תבנית להורדה
     template_data = {
         "Parameter": ["Total_Debt", "Cash", "EBITDA", "Current_Assets", "Current_Liabilities", "Operating_Profit", "Interest_Expense"],
         "Value": [1000, 200, 150, 500, 400, 120, 30]
@@ -175,7 +169,6 @@ def main():
             df = pd.read_csv(uploaded_file)
             data_dict = dict(zip(df['Parameter'], df['Value']))
             
-            # שליפת נתונים וחישוב היחסים הפיננסיים
             total_debt = data_dict.get("Total_Debt", 0)
             cash = data_dict.get("Cash", 0)
             ebitda = data_dict.get("EBITDA", 1) 
@@ -188,14 +181,12 @@ def main():
             current_ratio = current_assets / current_liabilities if current_liabilities > 0 else 0
             coverage_ratio = operating_profit / interest_expense if interest_expense > 0 else 99
 
-            # הפעלת מנוע האנליזה
             analyzer = AdvancedBondAnalyzer(ytm, duration, rating, net_debt_ebitda, current_ratio, coverage_ratio)
             final_score = analyzer.calculate_final_score()
 
             st.write("---")
             st.subheader("תוצאות הניתוח")
             
-            # הצגת מדדים יפים בשורה
             m1, m2, m3 = st.columns(3)
             m1.metric("חוב נטו ל-EBITDA", round(net_debt_ebitda, 2), "מעל 4 = מסוכן" if net_debt_ebitda > 4 else "תקין", delta_color="inverse")
             m2.metric("יחס שוטף (נזילות)", round(current_ratio, 2), "מתחת ל-1 = סכנה" if current_ratio < 1 else "תקין")
@@ -203,7 +194,6 @@ def main():
 
             st.write("<br>", unsafe_allow_html=True)
             
-            # חלוקה ל-2 עמודות עבור הגרפים
             graph_col1, graph_col2 = st.columns(2)
             
             with graph_col1:
