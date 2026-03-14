@@ -105,15 +105,16 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def analyze_pdf_with_ai(text):
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    # שינוי המודל לשם גנרי ויציב יותר
+    model = genai.GenerativeModel('gemini-1.5-flash')
     prompt = """
-    אתה אנליסט פיננסי. חלץ מהטקסט את הנתונים הבאים בפורמט JSON נקי בלבד:
+    אנליסט פיננסי: חלץ מהטקסט את הנתונים הבאים בפורמט JSON בלבד.
     "Total_Debt", "Cash", "EBITDA", "Current_Assets", "Current_Liabilities", "Operating_Profit", "Interest_Expense".
     החזר רק את ה-JSON. אם נתון חסר, רשום 0.
     טקסט:
     """ + text[:30000]
     
-    response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.1))
+    response = model.generate_content(prompt)
     clean_text = response.text.replace("```json", "").replace("```", "").strip()
     return json.loads(clean_text)
 
@@ -169,7 +170,7 @@ def main():
     with st.sidebar:
         st.header("נתוני שוק")
         ytm = st.number_input("תשואה לפדיון (%)", value=4.5, format="%.2f")
-        # התיקון כאן: הוספת format="%.2f" ו-step=0.01 מאפשרת להזין 4.25
+        # תמיכה בנקודה עשרונית במח"מ
         duration = st.number_input("מח\"מ (שנים)", value=3.0, step=0.01, format="%.2f")
         rating = st.selectbox("דירוג אשראי", ['AAA','AA','A','BBB','BB','B','CCC','CC','C','D','NR'], index=3)
         st.divider()
@@ -194,7 +195,20 @@ def main():
                     text = extract_text_from_pdf(pdf_file)
                     ai_data = analyze_pdf_with_ai(text)
                     st.success("הנתונים חולצו!")
-                    nd, cr, cov = compute_ratios(ai_data)
+                    
+                    # חישוב יחסים על בסיס נתוני ה-AI
+                    total_debt = ai_data.get("Total_Debt", 0)
+                    cash = ai_data.get("Cash", 0)
+                    ebitda = ai_data.get("EBITDA", 1)
+                    curr_assets = ai_data.get("Current_Assets", 0)
+                    curr_liab = ai_data.get("Current_Liabilities", 1)
+                    op_profit = ai_data.get("Operating_Profit", 0)
+                    int_exp = ai_data.get("Interest_Expense", 1)
+                    
+                    nd = (total_debt - cash) / ebitda if ebitda > 0 else 99
+                    cr = curr_assets / curr_liab if curr_liab > 0 else 0
+                    cov = op_profit / int_exp if int_exp > 0 else 99
+                    
                     analyzer = AdvancedBondAnalyzer(ytm, duration, rating, nd, cr, cov)
                     _render_results(analyzer, analyzer.calculate_final_score(), nd, cr, cov, "ניתוח PDF")
                 except Exception as e:
