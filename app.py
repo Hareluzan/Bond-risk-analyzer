@@ -339,14 +339,14 @@ class IsraeliBondAnalyzer:
 
     def get_recommendation(self, score: float) -> str:
         if score < 2.0:
-            return "האיגרת נראית איכותית יחסית, עם פרופיל סיכון-תשואה טוב ומבנה אשראי סביר."
+            return "🟢 מומלץ: האיגרת מציגה פרופיל סיכון-תשואה טוב ומבנה אשראי סביר."
         if score < 2.8:
-            return "האיגרת יכולה להתאים בתנאי שהתמחור נשאר סביר ושאין הידרדרות בנזילות או במחזור החוב."
+            return "🟡 ראוי לבחינה: האיגרת יכולה להתאים בתנאי שהתמחור נשאר סביר."
         if score < 3.5:
-            return "האיגרת כבר דורשת בחינה זהירה יותר. יש מקום לבדוק לעומק לוח סילוקין, בטוחות ונגישות לשוק."
+            return "🟠 השקעה ספקולטיבית: דורשת בחינה זהירה ומעקב צמוד (לוח סילוקין, בטוחות)."
         if score < 4.2:
-            return "רמת הסיכון גבוהה. ההשקעה מתאימה רק לאחר בדיקה מעמיקה של מקורות ושימושים, covenant package והיתכנות מחזור."
-        return "מדובר באיגרת ברמת סיכון גבוהה מאוד. נדרש ניתוח אשראי מלא, תרחישי קיצון והבנה מעמיקה של מבנה הקבוצה והסדרה."
+            return "🔴 רמת סיכון גבוהה: מתאימה רק לאחר בדיקה מעמיקה של מקורות ושימושים והיתכנות מחזור."
+        return "⛔ אזהרת מצוקה (Distress): נדרשת הבנה מעמיקה של תרחישי קיצון והסדרי חוב אפשריים."
 
     def get_metrics_summary(self) -> List[str]:
         items: List[str] = []
@@ -361,9 +361,9 @@ class IsraeliBondAnalyzer:
         if cov is not None and cov < 2:
             items.append(f"כיסוי ריבית חלש יחסית: {cov:.2f}x")
         if s_u is not None and s_u < 1.0:
-            items.append(f"מקורות לשימושים 12 חודשים מתחת ל-1: {s_u:.2f}x")
+            items.append(f"מקורות לשימושים (12 ח') מתחת ל-1: {s_u:.2f}x")
         if c_st is not None and c_st < 0.7:
-            items.append(f"מזומן מול חלויות 12 חודשים חלש: {c_st:.2f}x")
+            items.append(f"מזומן מול חלויות (12 ח') לחוץ: {c_st:.2f}x")
         if self.inputs.spread > 4:
             items.append(f"מרווח גבוה לשוק המקומי: {self.inputs.spread:.2f}%")
         if self.inputs.rating_outlook in ["שלילי", "בבחינה"]:
@@ -371,10 +371,10 @@ class IsraeliBondAnalyzer:
         if self.inputs.market_liquidity == "נמוכה":
             items.append("סחירות נמוכה יחסית עלולה להקשות על כניסה ויציאה")
         if self.inputs.covenant_strength == "חלש":
-            items.append("חבילת אמות המידה חלשה יחסית")
+            items.append("חבילת אמות המידה (Covenants) חלשה יחסית")
 
         if not items:
-            items.append("לא זוהו כרגע נורות אזהרה חריגות במודל הבסיסי")
+            items.append("✓ לא זוהו כרגע נורות אזהרה חריגות במודל הבסיסי")
 
         return items
 
@@ -422,11 +422,12 @@ def create_gauge(score: float, title: str) -> go.Figure:
     else:
         color = "#EF553B"
 
+    # ביטול המספר המובנה והצגתו ידנית כדי למנוע תזוזות במסך
     fig = go.Figure(
         go.Indicator(
             mode="gauge",
             value=score,
-            domain={"x": [0, 1], "y": [0, 1]},
+            domain={"x": [0, 1], "y": [0, 0.85]},
             title={"text": title, "font": {"size": 15, "color": CREAM}},
             gauge={
                 "axis": {"range": [1, 5], "tickwidth": 1, "tickcolor": GOLD},
@@ -450,13 +451,13 @@ def create_gauge(score: float, title: str) -> go.Figure:
 
     fig.add_annotation(
         x=0.5,
-        y=0.18,
+        y=0.15,
         text=f"{score:.2f}",
         showarrow=False,
-        font=dict(size=34, color=GOLD)
+        font=dict(size=36, color=GOLD)
     )
     fig.update_layout(
-        height=230,
+        height=240,
         margin=dict(l=10, r=10, t=35, b=10),
         paper_bgcolor="rgba(0,0,0,0)",
     )
@@ -473,7 +474,15 @@ def create_comparison_radar(records: List[Dict[str, Any]]) -> go.Figure:
         vals = [scores.get(cat, 3.0) for cat in categories]
         vals_loop = vals + [vals[0]]
         theta_loop = categories + [categories[0]]
-        color = palette[idx % len(palette)]
+        
+        clr = palette[idx % len(palette)]
+        
+        # המרת צבע שקופה בטוחה 
+        if clr.startswith("#"):
+            h = clr.lstrip("#")
+            fill_c = f"rgba({int(h[0:2], 16)}, {int(h[2:4], 16)}, {int(h[4:6], 16)}, 0.15)"
+        else:
+            fill_c = clr
 
         fig.add_trace(
             go.Scatterpolar(
@@ -481,9 +490,8 @@ def create_comparison_radar(records: List[Dict[str, Any]]) -> go.Figure:
                 theta=theta_loop,
                 fill="toself",
                 name=record.get("name", f"איגרת {idx+1}"),
-                line=dict(color=color, width=2),
-                fillcolor=color.replace(")", ", 0.15)").replace("rgb", "rgba") if color.startswith("rgb") else None,
-                opacity=0.65
+                line=dict(color=clr, width=2),
+                fillcolor=fill_c,
             )
         )
 
@@ -513,7 +521,7 @@ def create_comparison_radar(records: List[Dict[str, Any]]) -> go.Figure:
             x=0.5,
             bgcolor="rgba(0,0,0,0)"
         ),
-        margin=dict(l=50, r=50, t=30, b=70),
+        margin=dict(l=60, r=60, t=30, b=70),
     )
     return fig
 
@@ -540,6 +548,10 @@ APP_CSS = """
 h1, h2, h3, .stMarkdown, label, p, div, span {
   direction: rtl !important;
   text-align: right !important;
+}
+
+.st-visually-hidden, .visually-hidden {
+    display: none !important;
 }
 
 .block-title {
@@ -687,6 +699,7 @@ def build_compare_dataframe(records: List[Dict[str, Any]]) -> pd.DataFrame:
         rows.append({
             "שם האג\"ח": record.get("name"),
             "סקטור": inputs.get("sector"),
+            "הצמדה": inputs.get("linkage_type"),
             "דירוג": inputs.get("rating"),
             "אופק": inputs.get("rating_outlook"),
             "תשואה": fmt_pct(inputs.get("ytm")),
@@ -875,11 +888,16 @@ def main() -> None:
         st.divider()
         st.markdown("<div class='block-title'>מדדים מרכזיים</div>", unsafe_allow_html=True)
 
+        # תיקון הצבעים והאייקונים בחיווי של ה-Metrics
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("חוב נטו / EBITDA", fmt_ratio(derived["nd_ebitda"]), delta="גבוה" if (derived["nd_ebitda"] or 0) > 5 else "סביר")
-        m2.metric("כיסוי ריבית", fmt_ratio(derived["coverage"]), delta="חלש" if (derived["coverage"] is not None and derived["coverage"] < 2) else "סביר")
-        m3.metric("מזומן / חלויות 12ח", fmt_ratio(derived["cash_to_st_debt"]), delta="לחוץ" if (derived["cash_to_st_debt"] is not None and derived["cash_to_st_debt"] < 0.7) else "סביר")
-        m4.metric("מקורות / שימושים 12ח", fmt_ratio(derived["sources_to_uses_12m"]), delta="מתחת ל-1" if (derived["sources_to_uses_12m"] is not None and derived["sources_to_uses_12m"] < 1.0) else "סביר")
+        m1.metric("חוב נטו / EBITDA", fmt_ratio(derived["nd_ebitda"]), 
+                  delta="🔴 גבוה" if (derived["nd_ebitda"] or 0) > 5 else "🟢 סביר", delta_color="off")
+        m2.metric("כיסוי ריבית", fmt_ratio(derived["coverage"]), 
+                  delta="🔴 חלש" if (derived["coverage"] is not None and derived["coverage"] < 2) else "🟢 סביר", delta_color="off")
+        m3.metric("מזומן / חלויות 12ח", fmt_ratio(derived["cash_to_st_debt"]), 
+                  delta="🔴 לחוץ" if (derived["cash_to_st_debt"] is not None and derived["cash_to_st_debt"] < 0.7) else "🟢 סביר", delta_color="off")
+        m4.metric("מקורות / שימושים 12ח", fmt_ratio(derived["sources_to_uses_12m"]), 
+                  delta="🔴 מתחת ל-1" if (derived["sources_to_uses_12m"] is not None and derived["sources_to_uses_12m"] < 1.0) else "🟢 סביר", delta_color="off")
 
         st.divider()
         st.markdown("<div class='block-title'>פירוט ציונים</div>", unsafe_allow_html=True)
@@ -926,9 +944,11 @@ def main() -> None:
                 save_bonds_to_db(st.session_state.saved_bonds)
                 st.success(f"האיגרת '{inputs.name}' נשמרה בהצלחה.")
         with export_col:
+            # יישור ייצוא איגרת בודדת כך שיכלול את כל הנתונים, כולל הצמדה
             single_df = pd.DataFrame([{
                 "שם האג\"ח": inputs.name,
                 "סקטור": inputs.sector,
+                "הצמדה": inputs.linkage_type,
                 "דירוג": inputs.rating,
                 "אופק": inputs.rating_outlook,
                 "תשואה": inputs.ytm,
@@ -968,7 +988,9 @@ def main() -> None:
         else:
             with st.expander("ניהול איגרות שמורות", expanded=False):
                 names = [r.get("name", "") for r in saved_records]
-                selected_delete = st.multiselect("בחר איגרות להסרה", options=names)
+                
+                # העלמת ה-Choose an option המציק באנגלית
+                selected_delete = st.multiselect("בחר איגרות להסרה", options=names, placeholder=" ")
 
                 c_btn1, c_btn2 = st.columns(2)
                 with c_btn1:
