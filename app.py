@@ -1,6 +1,28 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import json
+import os
+
+# ============================================================
+# מסד נתונים מקומי (לשמירה קבועה של האג"חים)
+# ============================================================
+DB_FILE = 'saved_bonds_db.json'
+
+def load_saved_bonds():
+    """טוען את האג"חים השמורים מהקובץ המקומי"""
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+def save_bonds_to_db(bonds_list):
+    """שומר את האג"חים לקובץ מקומי כדי שלא יימחקו ביציאה מהאתר"""
+    with open(DB_FILE, 'w', encoding='utf-8') as f:
+        json.dump(bonds_list, f, ensure_ascii=False, indent=4)
 
 # ============================================================
 # מנוע האנליזה
@@ -23,7 +45,6 @@ class BondProAnalyzer:
         s_cr = self.score_metric(cr, [2, 1.5, 1, 0.8], reverse=True)
         s_cov = self.score_metric(cov, [5, 3, 1.5, 1], reverse=True)
         
-        # משקלות סיכון חברה (פונדמנטלי)
         return (s_nd * 0.5) + (s_cr * 0.25) + (s_cov * 0.25)
 
     def calc_bond_risk(self):
@@ -32,15 +53,12 @@ class BondProAnalyzer:
         rating = self.data['rating']
         collateral = self.data['collateral']
         
-        # סולם סיכון למרווח (באחוזים): מתחת ל-1% בטוח, מעל 6% מסוכן מאוד (זבל)
         s_spread = self.score_metric(spread, [1.0, 2.5, 4.0, 6.0])
         s_dur = self.score_metric(dur, [2, 4, 7, 10])
         s_rat = {'AAA':1, 'AA':1.5, 'A':2, 'BBB':3, 'BB':4, 'B':4.5, 'CCC':5}.get(rating, 5)
         
-        # המרווח מחליף את התשואה כמדד העיקרי לסיכון השוק של האג"ח
         raw_bond_score = (s_spread * 0.45) + (s_rat * 0.35) + (s_dur * 0.20)
         
-        # אפקט ביטחונות (מפחית סיכון - LGD)
         col_discount = {
             "ללא ביטחונות (Unsecured)": 0,
             "שעבוד צף על כלל הנכסים (Floating)": 0.3,
@@ -50,7 +68,7 @@ class BondProAnalyzer:
         }
         
         adjusted_score = raw_bond_score - col_discount.get(collateral, 0)
-        return max(1.0, min(adjusted_score, 5.0)) # שומר על הטווח 1-5
+        return max(1.0, min(adjusted_score, 5.0))
 
     def get_final_score(self):
         comp_risk = self.calc_company_risk()
@@ -82,7 +100,6 @@ def create_comparison_radar(bonds_list):
         data = bond['data']
         analyzer = BondProAnalyzer(data)
         
-        # המרת הנתונים לסולם של 1-5 לצורך הגרף
         vals = [
             analyzer.score_metric(data['spread'], [1.0, 2.5, 4.0, 6.0]),
             analyzer.score_metric(data['duration'], [2, 4, 7, 10]),
@@ -91,7 +108,7 @@ def create_comparison_radar(bonds_list):
             analyzer.score_metric(data['current_ratio'], [2, 1.5, 1, 0.8], True),
             analyzer.score_metric(data['coverage'], [5, 3, 1.5, 1], True)
         ]
-        vals.append(vals[0]) # סגירת המעגל
+        vals.append(vals[0])
         cats = categories + [categories[0]]
         
         fig.add_trace(go.Scatterpolar(r=vals, theta=cats, fill='toself', name=bond['name']))
@@ -113,8 +130,9 @@ def main():
     .stTooltipIcon { margin-right: 5px; }
     </style>""", unsafe_allow_html=True)
 
+    # טעינת האג"חים מהקובץ הקבוע בתחילת הריצה
     if 'saved_bonds' not in st.session_state:
-        st.session_state.saved_bonds = []
+        st.session_state.saved_bonds = load_saved_bonds()
 
     st.title("📊 מערכת Pro לניתוח והשוואת אג\"ח")
     
@@ -122,7 +140,7 @@ def main():
 
     with tab_input:
         st.header("הזנת פרטי איגרת החוב והחברה")
-        bond_name = st.text_input("שם / זיהוי האג\"ח (למשל: לאומי אגח סג')", "אג\"ח דוגמה")
+        bond_name = st.text_input("שם / זיהוי האג\"ח (למשל: דלתא גליל אגח ד')", "אג\"ח דוגמה")
         
         col1, col2 = st.columns(2)
         
@@ -130,7 +148,7 @@ def main():
             st.subheader("🏢 נתוני החברה המנפיקה (פונדמנטלי)")
             m_debt = st.number_input("סך חוב פיננסי", value=1000.0, help="כלל ההתחייבויות נושאות הריבית של החברה (לטווח קצר וארוך).")
             m_cash = st.number_input("מזומן ונזילות", value=200.0, help="מזומנים, שווי מזומנים והשקעות לזמן קצר.")
-            m_ebitda = st.number_input("EBITDA (רווח תפעולי תזרימי)", value=300.0, help="הרווח התפעולי של החברה בתוספת פחת והפחתות. מראה את המזומן מפעילות הליבה.")
+            m_ebitda = st.number_input("EBITDA (רווח תפעולי תזרימי)", value=300.0, help="הרווח התפעולי של החברה בתוספת פחת והפחתות.")
             
             st.divider()
             
@@ -146,14 +164,13 @@ def main():
             with c_yield1:
                 ytm = st.number_input("תשואה לפדיון האג\"ח (%)", value=4.5, step=0.1, help="התשואה השנתית הצפויה אם האיגרת תוחזק עד לפדיון.")
             with c_yield2:
-                spread = st.number_input("מרווח ממשלתי (Spread) ב-%", value=2.0, step=0.1, help="הפער בין תשואת האג\"ח לתשואת אג\"ח ממשלתית במח\"מ דומה. מגלם את פרמיית הסיכון שהשוק דורש.")
+                spread = st.number_input("מרווח ממשלתי (Spread) ב-%", value=2.0, step=0.1, help="הפער בין תשואת האג\"ח לתשואת אג\"ח ממשלתית במח\"מ דומה.")
             
             duration = st.number_input("מח\"מ (שנים)", value=3.0, step=0.1, help="משך החיים הממוצע של האג\"ח. מח\"מ ארוך = רגישות גבוהה יותר לשינויי ריבית.")
             rating = st.selectbox("דירוג אשראי", ['AAA','AA','A','BBB','BB','B','CCC','NR'], index=3, help="דירוג חברות המידרוג הרשמי.")
             
             st.divider()
             st.subheader("🛡️ ביטחונות (Collaterals)")
-            st.caption("קיום שעבודים מפחית את ה-LGD (ההפסד במקרה של כשל) ומשפר את פרופיל הסיכון של האיגרת.")
             collateral = st.selectbox("סוג הבטוחה שיש לאג\"ח", [
                 "ללא ביטחונות (Unsecured)",
                 "שעבוד צף על כלל הנכסים (Floating)",
@@ -191,17 +208,20 @@ def main():
         m3.metric("יחס שוטף", f"{round(cr, 2)}x", "נזילות נמוכה מ-1 מסוכנת" if cr < 1 else "נזילות תקינה")
         m4.metric("יחס כיסוי ריבית", f"{round(cov, 2)}x", "כיסוי חלש מ-1.5" if cov < 1.5 else "כיסוי תקין")
         
-        if st.button("💾 שמור איגרת חוב להשוואה", type="primary"):
+        if st.button("💾 שמור איגרת חוב למעבדה (יישמר קבוע)", type="primary"):
             st.session_state.saved_bonds.append({"name": bond_name, "data": current_data, "score": analyzer.get_final_score()})
-            st.success(f"האג\"ח '{bond_name}' נשמר בהצלחה! עבור לטאב השוואות.")
+            # עדכון קובץ השמירה הפיזי
+            save_bonds_to_db(st.session_state.saved_bonds)
+            st.success(f"האג\"ח '{bond_name}' נשמר בהצלחה במסד הנתונים! עבור לטאב השוואות.")
 
     with tab_compare:
         st.header("⚖️ מעבדת השוואת אג\"ח")
         if not st.session_state.saved_bonds:
             st.info("רשימת ההשוואה ריקה. הוסף איגרות חוב מטאב 'תוצאות ניתוח'.")
         else:
-            if st.button("🗑️ נקה רשימת השוואה"):
+            if st.button("🗑️ נקה מסד נתונים (מוחק לצמיתות)"):
                 st.session_state.saved_bonds = []
+                save_bonds_to_db([]) # מחיקת הקובץ הפיזי
                 st.rerun()
                 
             if st.session_state.saved_bonds:
