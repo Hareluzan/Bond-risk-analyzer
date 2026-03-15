@@ -209,8 +209,9 @@ def main():
         m4.metric("יחס כיסוי ריבית", f"{round(cov, 2)}x", "כיסוי חלש מ-1.5" if cov < 1.5 else "כיסוי תקין")
         
         if st.button("💾 שמור איגרת חוב למעבדה (יישמר קבוע)", type="primary"):
+            # מוודא שלא שומרים את אותו שם פעמיים (מעדכן אם קיים)
+            st.session_state.saved_bonds = [b for b in st.session_state.saved_bonds if b['name'] != bond_name]
             st.session_state.saved_bonds.append({"name": bond_name, "data": current_data, "score": analyzer.get_final_score()})
-            # עדכון קובץ השמירה הפיזי
             save_bonds_to_db(st.session_state.saved_bonds)
             st.success(f"האג\"ח '{bond_name}' נשמר בהצלחה במסד הנתונים! עבור לטאב השוואות.")
 
@@ -219,12 +220,27 @@ def main():
         if not st.session_state.saved_bonds:
             st.info("רשימת ההשוואה ריקה. הוסף איגרות חוב מטאב 'תוצאות ניתוח'.")
         else:
-            if st.button("🗑️ נקה מסד נתונים (מוחק לצמיתות)"):
-                st.session_state.saved_bonds = []
-                save_bonds_to_db([]) # מחיקת הקובץ הפיזי
-                st.rerun()
+            # אזור ניהול רשימת ההשוואה
+            with st.expander("🛠️ ניהול ומחיקת איגרות מההשוואה", expanded=True):
+                bond_names_list = [b['name'] for b in st.session_state.saved_bonds]
+                bonds_to_delete = st.multiselect("בחר איגרת או מספר איגרות להסרה מהמעבדה:", bond_names_list)
                 
+                col_del1, col_del2 = st.columns([1, 4])
+                with col_del1:
+                    if st.button("🗑️ הסר נבחרים"):
+                        if bonds_to_delete:
+                            st.session_state.saved_bonds = [b for b in st.session_state.saved_bonds if b['name'] not in bonds_to_delete]
+                            save_bonds_to_db(st.session_state.saved_bonds)
+                            st.rerun()
+                with col_del2:
+                    if st.button("🚨 נקה את כל המסד"):
+                        st.session_state.saved_bonds = []
+                        save_bonds_to_db([])
+                        st.rerun()
+
+            # תצוגת ההשוואה
             if st.session_state.saved_bonds:
+                st.divider()
                 c1, c2 = st.columns([2, 1])
                 
                 with c1:
