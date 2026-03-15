@@ -103,7 +103,7 @@ def create_gauge(score, title):
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=score,
-        domain={'x': [0,1], 'y': [0, 0.80]}, # הגבלת הגובה כדי למנוע דריסת טקסט
+        domain={'x': [0,1], 'y': [0, 0.80]}, 
         title={'text': title, 'font': {'size': 16, 'color': CREAM, 'family': 'Georgia, serif'}},
         number={'font': {'color': GOLD, 'size': 32, 'family': 'Georgia, serif'}},
         gauge={
@@ -123,7 +123,7 @@ def create_gauge(score, title):
     ))
     fig.update_layout(
         height=260,
-        margin=dict(l=15, r=15, t=65, b=10), # שוליים מורחבים
+        margin=dict(l=15, r=15, t=65, b=10),
         paper_bgcolor="rgba(0,0,0,0)",
         font=dict(family='Georgia, serif')
     )
@@ -149,7 +149,6 @@ def create_comparison_radar(bonds_list):
         
         clr = palette[idx % len(palette)]
         
-        # המרה בטוחה של צבע Hex ל-RGBA למניעת קריסות
         if clr.startswith("#"):
             h = clr.lstrip("#")
             fill_c = f"rgba({int(h[0:2], 16)}, {int(h[2:4], 16)}, {int(h[4:6], 16)}, 0.15)"
@@ -213,6 +212,11 @@ LUXURY_CSS = """
   height: 3px;
   background: linear-gradient(90deg, transparent, var(--gold), var(--gold2), var(--gold), transparent);
   position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+}
+
+/* העלמת טקסט נגישות שנדחף למסך בגלל ה-RTL (כמו המילים Expand/Collapse) */
+.st-visually-hidden, .visually-hidden {
+    display: none !important;
 }
 
 /* Main title */
