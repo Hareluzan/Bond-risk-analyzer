@@ -103,9 +103,9 @@ def create_gauge(score, title):
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=score,
-        domain={'x': [0,1], 'y': [0,1]},
-        title={'text': title, 'font': {'size': 14, 'color': CREAM, 'family': 'Georgia, serif'}},
-        number={'font': {'color': GOLD, 'size': 36, 'family': 'Georgia, serif'}},
+        domain={'x': [0,1], 'y': [0, 0.80]}, # הגבלת הגובה כדי למנוע דריסת טקסט
+        title={'text': title, 'font': {'size': 16, 'color': CREAM, 'family': 'Georgia, serif'}},
+        number={'font': {'color': GOLD, 'size': 32, 'family': 'Georgia, serif'}},
         gauge={
             'axis': {'range': [1,5], 'tickwidth': 1, 'tickcolor': GOLD,
                      'tickfont': {'color': CREAM, 'size': 10}},
@@ -122,8 +122,8 @@ def create_gauge(score, title):
         }
     ))
     fig.update_layout(
-        height=240,
-        margin=dict(l=20, r=20, t=50, b=10),
+        height=260,
+        margin=dict(l=15, r=15, t=65, b=10), # שוליים מורחבים
         paper_bgcolor="rgba(0,0,0,0)",
         font=dict(family='Georgia, serif')
     )
@@ -149,7 +149,7 @@ def create_comparison_radar(bonds_list):
         
         clr = palette[idx % len(palette)]
         
-        # המרה בטוחה של צבע Hex ל-RGBA שקוף לטובת ציור הגרף בלי קריסות
+        # המרה בטוחה של צבע Hex ל-RGBA למניעת קריסות
         if clr.startswith("#"):
             h = clr.lstrip("#")
             fill_c = f"rgba({int(h[0:2], 16)}, {int(h[2:4], 16)}, {int(h[4:6], 16)}, 0.15)"
@@ -607,7 +607,7 @@ def main():
             })
             save_bonds_to_db(st.session_state.saved_bonds)
             st.success(f"האג\"ח '{bond_name}' נשמר בהצלחה ✓")
-            st.rerun() # מוודא שטאב ההשוואות מתעדכן באותה שנייה
+            st.rerun() 
 
     # ──────────────── TAB 3: השוואות ────────────────
     with tab_compare:
@@ -623,12 +623,20 @@ def main():
               </span>
             </div>""", unsafe_allow_html=True)
         else:
-            with st.expander("ניהול האיגרות השמורות", expanded=False):
+            with st.expander("⚙️ ניהול האיגרות השמורות", expanded=False):
                 bond_names_list = [b['name'] for b in st.session_state.saved_bonds]
-                bonds_to_delete = st.multiselect("בחר להסרה:", bond_names_list)
-                cd1, cd2 = st.columns([1,4])
+                
+                bonds_to_delete = st.multiselect(
+                    "בחר איגרות להסרה מהמעבדה:", 
+                    options=bond_names_list,
+                    placeholder="בחר מרשימת האיגרות..." 
+                )
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                cd1, cd2, cd3 = st.columns([1, 1, 2])
                 with cd1:
-                    if st.button("הסר נבחרים"):
+                    if st.button("הסר נבחרים", use_container_width=True):
                         if bonds_to_delete:
                             st.session_state.saved_bonds = [
                                 b for b in st.session_state.saved_bonds
@@ -637,7 +645,7 @@ def main():
                             save_bonds_to_db(st.session_state.saved_bonds)
                             st.rerun()
                 with cd2:
-                    if st.button("נקה מסד נתונים"):
+                    if st.button("נקה מסד נתונים", use_container_width=True):
                         st.session_state.saved_bonds = []
                         save_bonds_to_db([])
                         st.rerun()
