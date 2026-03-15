@@ -161,7 +161,7 @@ class BondInputs:
     rating: str
     rating_outlook: str
     linkage_type: str
-    expected_inflation: float # <--- שדה חדש לאינפלציה חזויה
+    expected_inflation: float 
     collateral_type: str
     seniority: str
     covenant_strength: str
@@ -319,7 +319,6 @@ class IsraeliBondAnalyzer:
         liquidity_sources = self.inputs.cash + self.inputs.expected_cashflow_12m + self.inputs.unused_credit_lines
         sources_to_uses_12m = None if uses_12m <= 0 else liquidity_sources / uses_12m
 
-        # חישוב תשואה נומינלית הוגנת (Apples to Apples) בעזרת משוואת פישר
         if self.inputs.linkage_type == "צמוד מדד":
             real_rate = self.inputs.ytm / 100.0
             inflation = self.inputs.expected_inflation / 100.0
@@ -335,7 +334,7 @@ class IsraeliBondAnalyzer:
             "sources_to_uses_12m": None if sources_to_uses_12m is None else round(sources_to_uses_12m, 2),
             "liquidity_sources_12m": round(liquidity_sources, 2),
             "uses_12m": round(uses_12m, 2),
-            "nominal_ytm": round(nominal_ytm, 2), # <--- התשואה המותאמת נכנסת למאגר
+            "nominal_ytm": round(nominal_ytm, 2), 
         }
 
     def spread_bucket(self) -> str:
@@ -555,6 +554,23 @@ p, span, div, label, h1, h2, h3, .stMarkdown {
 [data-testid="stMetricLabel"] * { color: #A8A8A8 !important; }
 [data-testid="stMetricDelta"] svg { display: none !important; }
 .st-visually-hidden, .visually-hidden { display: none !important; }
+
+/* תיקון צבע לרקע ולטקסט של תפריטי הבחירה (Dropdowns) */
+[data-baseweb="popover"] > div, 
+[data-baseweb="menu"], 
+div[role="listbox"],
+ul[role="listbox"] {
+  background-color: var(--panel) !important;
+}
+li[role="option"] {
+  background-color: var(--panel) !important;
+}
+li[role="option"]:hover, li[aria-selected="true"] {
+  background-color: #1e2430 !important;
+}
+li[role="option"] span {
+  color: var(--cream) !important;
+}
 
 .block-title {
   font-size: 0.83rem;
