@@ -84,14 +84,14 @@ class BondProAnalyzer:
         cov = self.data['coverage']
         sp  = self.data['spread']
         items = []
-        if nd  > 4:   items.append(f"מינוף גבוה ({round(nd,1)}x ND/EBITDA)")
+        if nd  > 4.0: items.append(f"מינוף גבוה ({round(nd,1)}x ND/EBITDA)")
         if cr  < 1.0: items.append(f"נזילות לחוצה (יחס שוטף {round(cr,2)})")
         if cov < 1.5: items.append(f"כיסוי ריבית חלש ({round(cov,2)}x)")
         if sp  > 4.0: items.append(f"מרווח גבוה ({round(sp,2)}%) — שוק מתמחר סיכון")
         return items if items else ["כל המדדים בטווחים תקינים ✓"]
 
 # ============================================================
-# ויזואליזציה
+# ויזואליזציה (מתוקנת לחלוטין למניעת תזוזות)
 # ============================================================
 GOLD  = "#C9A96E"
 CREAM = "#F5EDD6"
@@ -100,12 +100,13 @@ PANEL = "#12161F"
 
 def create_gauge(score, title):
     color = "#00cc96" if score < 2.5 else ("#FFA15A" if score < 3.8 else "#EF553B")
+    
+    # השתמשנו במצב "gauge" בלבד (ללא המספר המובנה) כדי למנוע את באג המרכוז
     fig = go.Figure(go.Indicator(
-        mode="gauge+number",
+        mode="gauge",
         value=score,
-        domain={'x': [0,1], 'y': [0, 0.80]}, 
-        title={'text': title, 'font': {'size': 16, 'color': CREAM, 'family': 'Georgia, serif'}},
-        number={'font': {'color': GOLD, 'size': 32, 'family': 'Georgia, serif'}},
+        domain={'x': [0, 1], 'y': [0, 0.85]}, 
+        title={'text': title, 'font': {'size': 15, 'color': CREAM, 'family': 'Georgia, serif'}},
         gauge={
             'axis': {'range': [1,5], 'tickwidth': 1, 'tickcolor': GOLD,
                      'tickfont': {'color': CREAM, 'size': 10}},
@@ -121,9 +122,18 @@ def create_gauge(score, title):
             'threshold': {'line': {'color': GOLD, 'width': 2}, 'thickness': 0.8, 'value': score}
         }
     ))
+    
+    # הוספת המספר בצורה נעוצה (Annotation) כך שתמיד יהיה בדיוק באמצע!
+    fig.add_annotation(
+        x=0.5, y=0.15,
+        text=f"{score:.2f}",
+        showarrow=False,
+        font=dict(size=38, color=GOLD, family='Georgia, serif')
+    )
+    
     fig.update_layout(
-        height=260,
-        margin=dict(l=15, r=15, t=65, b=10),
+        height=240,
+        margin=dict(l=15, r=15, t=40, b=10),
         paper_bgcolor="rgba(0,0,0,0)",
         font=dict(family='Georgia, serif')
     )
@@ -175,9 +185,10 @@ def create_comparison_radar(bonds_list):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=CREAM, family='Georgia, serif'),
-        legend=dict(orientation="h", yanchor="bottom", y=1.08, xanchor="center", x=0.5,
-                    font=dict(color=CREAM), bgcolor="rgba(0,0,0,0)", bordercolor=GOLD, borderwidth=1),
-        margin=dict(l=60,r=60,t=60,b=40)
+        # העברת המקרא (Legend) למטה כדי למנוע התנגשויות במסכים קטנים
+        legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5,
+                    font=dict(color=CREAM, size=12), bgcolor="rgba(0,0,0,0)"),
+        margin=dict(l=70, r=70, t=40, b=80) # הגדלת שוליים למניעת חיתוך טקסט
     )
     return fig
 
@@ -214,7 +225,7 @@ LUXURY_CSS = """
   position: fixed; top: 0; left: 0; right: 0; z-index: 999;
 }
 
-/* העלמת טקסט נגישות שנדחף למסך בגלל ה-RTL (כמו המילים Expand/Collapse) */
+/* העלמת טקסט נגישות (Expand/Collapse) שנדחף למסך */
 .st-visually-hidden, .visually-hidden {
     display: none !important;
 }
@@ -242,13 +253,6 @@ h2, h3 {
 p, div, label, span, .stMarkdown {
   text-align: right !important;
   font-family: 'Cormorant Garamond', Georgia, serif !important;
-}
-
-/* Sidebar */
-div[data-testid="stSidebar"] {
-  background: var(--panel) !important;
-  border-left: 1px solid var(--border) !important;
-  direction: rtl !important;
 }
 
 /* Tabs */
@@ -280,12 +284,11 @@ div[data-testid="stSidebar"] {
 .stTextInput input, .stNumberInput input, .stSelectbox select {
   background: var(--panel) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 2px !important;
+  border-radius: 4px !important;
   color: var(--cream) !important;
   font-family: 'Cormorant Garamond', Georgia, serif !important;
   font-size: 1rem !important;
   padding: 8px 14px !important;
-  transition: border-color 0.2s ease !important;
   text-align: right !important;
 }
 .stTextInput input:focus, .stNumberInput input:focus {
@@ -314,14 +317,13 @@ hr {
   background: var(--panel) !important;
   border: 1px solid var(--border) !important;
   border-top: 2px solid var(--gold) !important;
-  border-radius: 2px !important;
+  border-radius: 4px !important;
   padding: 18px 20px !important;
 }
 [data-testid="stMetricLabel"] {
   font-family: 'Josefin Sans', sans-serif !important;
   font-size: 0.72rem !important;
   letter-spacing: 0.12em !important;
-  text-transform: uppercase !important;
   color: #7a7060 !important;
 }
 [data-testid="stMetricValue"] {
@@ -334,75 +336,55 @@ hr {
 .stButton > button[kind="primary"] {
   background: linear-gradient(135deg, #B8935A, #C9A96E) !important;
   border: 1px solid var(--gold) !important;
-  border-radius: 2px !important;
+  border-radius: 4px !important;
   color: var(--dark) !important;
   font-family: 'Josefin Sans', sans-serif !important;
-  font-size: 0.78rem !important;
-  letter-spacing: 0.15em !important;
-  text-transform: uppercase !important;
   font-weight: 600 !important;
   padding: 12px 28px !important;
-  transition: all 0.25s ease !important;
 }
 .stButton > button[kind="primary"]:hover {
   background: linear-gradient(135deg, #C9A96E, #E8D5A3) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 4px 20px rgba(201,169,110,0.35) !important;
 }
 
-/* Secondary button */
+/* Secondary button (Delete/Manage) */
 .stButton > button {
   background: #2b313e !important;
   border: 1px solid #4a5568 !important;
-  border-radius: 6px !important;
+  border-radius: 4px !important;
+  width: 100%;
 }
 .stButton > button p {
   color: #ffffff !important;
   font-weight: 600 !important;
   font-family: 'Josefin Sans', sans-serif !important;
-  letter-spacing: 0.1em !important;
 }
 .stButton > button:hover {
   background: #1e2430 !important;
-  border-color: #00cc96 !important;
+  border-color: #EF553B !important; /* אדום במעבר עכבר לכפתורי מחיקה */
 }
 .stButton > button:hover p {
-  color: #00cc96 !important;
+  color: #EF553B !important;
 }
 
 /* Expander */
 .streamlit-expanderHeader {
   font-family: 'Josefin Sans', sans-serif !important;
-  font-size: 0.8rem !important;
+  font-size: 0.85rem !important;
   letter-spacing: 0.1em !important;
   color: var(--gold2) !important;
-  border: 1px solid var(--border) !important;
   background: var(--panel) !important;
-}
-
-/* Dataframe */
-.stDataFrame {
   border: 1px solid var(--border) !important;
+  border-radius: 4px !important;
 }
 
-/* Alert / info */
-.stAlert {
-  background: rgba(201,169,110,0.07) !important;
+/* DataFrame styling */
+[data-testid="stDataFrame"] {
   border: 1px solid var(--border) !important;
-  border-left: 3px solid var(--gold) !important;
-  border-radius: 2px !important;
-  color: var(--cream) !important;
+  border-radius: 4px;
 }
 
-/* Section card helper */
-.luxury-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-top: 2px solid var(--gold);
-  border-radius: 2px;
-  padding: 24px 28px;
-  margin-bottom: 20px;
-}
+/* Helper Classes */
 .luxury-section-title {
   font-family: 'Josefin Sans', sans-serif;
   font-size: 0.72rem;
@@ -416,35 +398,32 @@ hr {
 .risk-badge {
   display: inline-block;
   font-family: 'Josefin Sans', sans-serif;
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
   padding: 4px 14px;
-  border-radius: 1px;
+  border-radius: 4px;
 }
 .recommendation-box {
   background: rgba(201,169,110,0.06);
   border: 1px solid var(--border);
   border-right: 3px solid var(--gold);
   padding: 16px 20px;
-  border-radius: 2px;
+  border-radius: 4px;
   font-family: 'Cormorant Garamond', Georgia, serif;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   color: var(--cream);
   margin-top: 16px;
 }
 .warning-item {
   color: #FFA15A;
   font-family: 'Josefin Sans', sans-serif;
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
+  font-size: 0.8rem;
   padding: 4px 0;
 }
 .ok-item {
   color: #00cc96;
   font-family: 'Josefin Sans', sans-serif;
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
+  font-size: 0.8rem;
   padding: 4px 0;
 }
 </style>
@@ -460,7 +439,7 @@ def main():
     if 'saved_bonds' not in st.session_state:
         st.session_state.saved_bonds = load_saved_bonds()
 
-    # כותרת ראשית עם קישוט
+    # כותרת ראשית
     st.markdown("""
     <div style='text-align:center; padding: 2rem 0 1rem; direction: ltr;'>
       <div style='font-family:"Josefin Sans",sans-serif; font-size:0.72rem; letter-spacing:0.22em;
@@ -550,16 +529,12 @@ def main():
           </div>
           <div style='text-align:left;'>
             <div class="risk-badge" style="background:rgba(201,169,110,0.1);
-              border:1px solid {risk_color}; color:{risk_color}; font-size:0.78rem; padding:6px 18px;">
+              border:1px solid {risk_color}; color:{risk_color};">
               סיכון {risk_label}
             </div>
             <div style='font-family:"Playfair Display",serif; font-size:2.8rem;
                         color:{risk_color}; text-align:left; margin-top:4px;'>
-              {final_score}
-            </div>
-            <div style='font-family:"Josefin Sans",sans-serif; font-size:0.65rem;
-                        letter-spacing:0.1em; color:#7a7060; text-align:left;'>
-              ציון 1–5
+              {final_score:.2f}
             </div>
           </div>
         </div>
@@ -586,12 +561,9 @@ def main():
         st.divider()
 
         rec_col, warn_col = st.columns([3, 2])
-
         with rec_col:
             st.markdown("<div class='luxury-section-title'>המלצה</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='recommendation-box'>{analyzer.get_recommendation(final_score)}</div>",
-                        unsafe_allow_html=True)
-
+            st.markdown(f"<div class='recommendation-box'>{analyzer.get_recommendation(final_score)}</div>", unsafe_allow_html=True)
         with warn_col:
             st.markdown("<div class='luxury-section-title'>נקודות לתשומת לב</div>", unsafe_allow_html=True)
             for item in analyzer.get_metrics_summary():
@@ -605,9 +577,7 @@ def main():
                 b for b in st.session_state.saved_bonds if b['name'] != bond_name
             ]
             st.session_state.saved_bonds.append({
-                "name": bond_name,
-                "data": current_data,
-                "score": final_score
+                "name": bond_name, "data": current_data, "score": final_score
             })
             save_bonds_to_db(st.session_state.saved_bonds)
             st.success(f"האג\"ח '{bond_name}' נשמר בהצלחה ✓")
@@ -640,44 +610,41 @@ def main():
                 
                 cd1, cd2, cd3 = st.columns([1, 1, 2])
                 with cd1:
-                    if st.button("הסר נבחרים", use_container_width=True):
+                    if st.button("הסר נבחרים"):
                         if bonds_to_delete:
                             st.session_state.saved_bonds = [
-                                b for b in st.session_state.saved_bonds
-                                if b['name'] not in bonds_to_delete
+                                b for b in st.session_state.saved_bonds if b['name'] not in bonds_to_delete
                             ]
                             save_bonds_to_db(st.session_state.saved_bonds)
                             st.rerun()
                 with cd2:
-                    if st.button("נקה מסד נתונים", use_container_width=True):
+                    if st.button("נקה מסד נתונים"):
                         st.session_state.saved_bonds = []
                         save_bonds_to_db([])
                         st.rerun()
 
             if st.session_state.saved_bonds:
                 st.divider()
-                c1, c2 = st.columns([3,2], gap="large")
+                
+                # הרחבת הגרף והטבלה כך שיתאימו בצורה מושלמת בלי חיתוכים
+                c1, c2 = st.columns([1.2, 1], gap="large")
 
                 with c1:
-                    st.markdown("<div class='luxury-section-title'>פיזור סיכונים — רדאר</div>",
-                                unsafe_allow_html=True)
-                    st.plotly_chart(create_comparison_radar(st.session_state.saved_bonds),
-                                   use_container_width=True)
+                    st.markdown("<div class='luxury-section-title'>פיזור סיכונים — רדאר</div>", unsafe_allow_html=True)
+                    st.plotly_chart(create_comparison_radar(st.session_state.saved_bonds), use_container_width=True)
 
                 with c2:
-                    st.markdown("<div class='luxury-section-title'>טבלת סיכום</div>",
-                                unsafe_allow_html=True)
+                    st.markdown("<div class='luxury-section-title'>טבלת סיכום</div>", unsafe_allow_html=True)
                     df_compare = pd.DataFrame([{
                         "שם האג\"ח":       b['name'],
                         "ציון":            b['score'],
-                        "רמת סיכון":       BondProAnalyzer(b['data']).get_risk_label(b['score'])[0],
+                        "סיכון":           BondProAnalyzer(b['data']).get_risk_label(b['score'])[0],
                         "מרווח":           f"{round(b['data']['spread'],2)}%",
-                        "תשואה לפדיון":   f"{b['data']['ytm']}%",
+                        "תשואה":           f"{b['data']['ytm']}%",
                         "דירוג":           b['data']['rating'],
                         "ביטחונות":        b['data']['collateral'].split("(")[0].strip()
                     } for b in st.session_state.saved_bonds])
                     st.dataframe(df_compare, hide_index=True, use_container_width=True)
-
 
 if __name__ == "__main__":
     main()
