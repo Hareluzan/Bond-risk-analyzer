@@ -123,11 +123,31 @@ def create_comparison_radar(bonds_list):
 # ============================================================
 def main():
     st.set_page_config(page_title="מערכת עליונה לניתוח אג\"ח", layout="wide")
+    
+    # CSS מעודכן שמתקן את נראות הכפתורים
     st.markdown("""<style>
     .stApp { direction: rtl; background: #0e1117; color: #fafafa; text-align: right; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     div[data-testid="stSidebar"] { direction: rtl; text-align: right; }
     p, div, label, h1, h2, h3, span { text-align: right !important; }
     .stTooltipIcon { margin-right: 5px; }
+    
+    /* עיצוב כפתורים כדי שהטקסט יהיה ברור תמיד */
+    .stButton > button {
+        background-color: #2b313e !important;
+        border: 1px solid #4a5568 !important;
+        border-radius: 6px !important;
+    }
+    .stButton > button p {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+    .stButton > button:hover {
+        background-color: #1e2430 !important;
+        border-color: #00cc96 !important;
+    }
+    .stButton > button:hover p {
+        color: #00cc96 !important;
+    }
     </style>""", unsafe_allow_html=True)
 
     # טעינת האג"חים מהקובץ הקבוע בתחילת הריצה
@@ -209,7 +229,6 @@ def main():
         m4.metric("יחס כיסוי ריבית", f"{round(cov, 2)}x", "כיסוי חלש מ-1.5" if cov < 1.5 else "כיסוי תקין")
         
         if st.button("💾 שמור איגרת חוב למעבדה (יישמר קבוע)", type="primary"):
-            # מוודא שלא שומרים את אותו שם פעמיים (מעדכן אם קיים)
             st.session_state.saved_bonds = [b for b in st.session_state.saved_bonds if b['name'] != bond_name]
             st.session_state.saved_bonds.append({"name": bond_name, "data": current_data, "score": analyzer.get_final_score()})
             save_bonds_to_db(st.session_state.saved_bonds)
@@ -220,7 +239,6 @@ def main():
         if not st.session_state.saved_bonds:
             st.info("רשימת ההשוואה ריקה. הוסף איגרות חוב מטאב 'תוצאות ניתוח'.")
         else:
-            # אזור ניהול רשימת ההשוואה
             with st.expander("🛠️ ניהול ומחיקת איגרות מההשוואה", expanded=True):
                 bond_names_list = [b['name'] for b in st.session_state.saved_bonds]
                 bonds_to_delete = st.multiselect("בחר איגרת או מספר איגרות להסרה מהמעבדה:", bond_names_list)
@@ -238,7 +256,6 @@ def main():
                         save_bonds_to_db([])
                         st.rerun()
 
-            # תצוגת ההשוואה
             if st.session_state.saved_bonds:
                 st.divider()
                 c1, c2 = st.columns([2, 1])
