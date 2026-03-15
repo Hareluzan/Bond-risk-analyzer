@@ -8,6 +8,9 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+# ============================================================
+# קונפיגורציה כללית
+# ============================================================
 DB_FILE = "saved_israeli_bonds_db.json"
 
 RATING_OPTIONS = [
@@ -148,7 +151,9 @@ SECTOR_FIELD_CONFIG = {
     },
 }
 
-
+# ============================================================
+# שכבת נתונים
+# ============================================================
 @dataclass
 class BondInputs:
     name: str
@@ -156,6 +161,7 @@ class BondInputs:
     rating: str
     rating_outlook: str
     linkage_type: str
+    expected_inflation: float # <--- שדה חדש לאינפלציה חזויה
     collateral_type: str
     seniority: str
     covenant_strength: str
@@ -183,7 +189,6 @@ class BondInputs:
     equity_to_assets: Optional[float] = None
     qualitative_risk: float = 3.0
 
-
 @dataclass
 class BondRecord:
     name: str
@@ -192,7 +197,6 @@ class BondRecord:
     derived: Dict[str, Any]
     scores: Dict[str, Any]
 
-
 def safe_float(value: Any) -> Optional[float]:
     try:
         if value in ("", None):
@@ -200,7 +204,6 @@ def safe_float(value: Any) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
-
 
 def load_saved_bonds() -> List[Dict[str, Any]]:
     if not os.path.exists(DB_FILE):
@@ -212,26 +215,24 @@ def load_saved_bonds() -> List[Dict[str, Any]]:
     except (json.JSONDecodeError, OSError):
         return []
 
-
 def save_bonds_to_db(bonds_list: List[Dict[str, Any]]) -> None:
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(bonds_list, f, ensure_ascii=False, indent=2)
-
 
 def upsert_bond_record(record: Dict[str, Any], saved_bonds: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     cleaned = [b for b in saved_bonds if b.get("name") != record.get("name")]
     cleaned.append(record)
     return cleaned
 
-
 def delete_bonds_by_name(saved_bonds: List[Dict[str, Any]], names_to_delete: List[str]) -> List[Dict[str, Any]]:
     return [b for b in saved_bonds if b.get("name") not in set(names_to_delete)]
 
-
+# ============================================================
+# מנוע אנליזה
+# ============================================================
 class IsraeliBondAnalyzer:
     RATING_MAP = {
-        "AAA": 1.0,
-        "AA+": 1.2, "AA": 1.4, "AA-": 1.6,
+        "AAA": 1.0, "AA+": 1.2, "AA": 1.4, "AA-": 1.6,
         "A+": 1.9, "A": 2.1, "A-": 2.4,
         "BBB+": 2.8, "BBB": 3.1, "BBB-": 3.4,
         "BB+": 3.8, "BB": 4.1, "BB-": 4.3,
@@ -240,37 +241,24 @@ class IsraeliBondAnalyzer:
     }
 
     OUTLOOK_ADJUSTMENT = {
-        "חיובי": -0.15,
-        "יציב": 0.0,
-        "שלילי": 0.20,
-        "בבחינה": 0.30
+        "חיובי": -0.15, "יציב": 0.0, "שלילי": 0.20, "בבחינה": 0.30
     }
 
     COLLATERAL_SCORE = {
-        "ללא בטוחה": 5.0,
-        "שעבוד צף": 4.2,
-        "ערבות חברת אם": 3.4,
-        "שעבוד מניות": 3.0,
-        "שעבוד ספציפי על נכס": 2.2,
-        "שעבוד חזק עם יחס כיסוי גבוה": 1.5
+        "ללא בטוחה": 5.0, "שעבוד צף": 4.2, "ערבות חברת אם": 3.4,
+        "שעבוד מניות": 3.0, "שעבוד ספציפי על נכס": 2.2, "שעבוד חזק עם יחס כיסוי גבוה": 1.5
     }
 
     SENIORITY_SCORE = {
-        "בכירה": 1.5,
-        "רגילה": 2.8,
-        "נחותה": 4.5
+        "בכירה": 1.5, "רגילה": 2.8, "נחותה": 4.5
     }
 
     COVENANT_SCORE = {
-        "חזק": 1.8,
-        "בינוני": 3.0,
-        "חלש": 4.4
+        "חזק": 1.8, "בינוני": 3.0, "חלש": 4.4
     }
 
     MARKET_LIQUIDITY_SCORE = {
-        "גבוהה": 1.8,
-        "בינונית": 3.0,
-        "נמוכה": 4.4
+        "גבוהה": 1.8, "בינונית": 3.0, "נמוכה": 4.4
     }
 
     LEVERAGE_THRESHOLDS_BY_SECTOR = {
@@ -304,15 +292,9 @@ class IsraeliBondAnalyzer:
         self.derived = self.build_derived_metrics()
 
     @staticmethod
-    def score_metric(
-        value: Optional[float],
-        thresholds: List[float],
-        reverse: bool = False,
-        missing_score: float = 5.0,
-    ) -> float:
+    def score_metric(value: Optional[float], thresholds: List[float], reverse: bool = False, missing_score: float = 5.0) -> float:
         if value is None:
             return missing_score
-
         for i, t in enumerate(thresholds):
             if (value <= t and not reverse) or (value >= t and reverse):
                 return float(i + 1)
@@ -337,6 +319,14 @@ class IsraeliBondAnalyzer:
         liquidity_sources = self.inputs.cash + self.inputs.expected_cashflow_12m + self.inputs.unused_credit_lines
         sources_to_uses_12m = None if uses_12m <= 0 else liquidity_sources / uses_12m
 
+        # חישוב תשואה נומינלית הוגנת (Apples to Apples) בעזרת משוואת פישר
+        if self.inputs.linkage_type == "צמוד מדד":
+            real_rate = self.inputs.ytm / 100.0
+            inflation = self.inputs.expected_inflation / 100.0
+            nominal_ytm = ((1 + real_rate) * (1 + inflation) - 1) * 100.0
+        else:
+            nominal_ytm = self.inputs.ytm
+
         return {
             "net_debt": round(net_debt, 2),
             "nd_ebitda": None if nd_ebitda is None else round(nd_ebitda, 2),
@@ -345,30 +335,24 @@ class IsraeliBondAnalyzer:
             "sources_to_uses_12m": None if sources_to_uses_12m is None else round(sources_to_uses_12m, 2),
             "liquidity_sources_12m": round(liquidity_sources, 2),
             "uses_12m": round(uses_12m, 2),
+            "nominal_ytm": round(nominal_ytm, 2), # <--- התשואה המותאמת נכנסת למאגר
         }
 
     def spread_bucket(self) -> str:
-        if self.inputs.duration <= 2:
-            return "short"
-        if self.inputs.duration <= 5:
-            return "mid"
+        if self.inputs.duration <= 2: return "short"
+        if self.inputs.duration <= 5: return "mid"
         return "long"
 
     def sector_specific_metric_score(self) -> Tuple[float, str]:
         sector = self.inputs.sector
-
         if sector == "נדל\"ן מניב":
             return self.score_metric(self.inputs.ltv, [45, 55, 65, 75], reverse=False, missing_score=4.0), "LTV"
-
         if sector == "חברת החזקות":
             return self.score_metric(self.inputs.debt_to_nav, [15, 25, 35, 50], reverse=False, missing_score=4.0), "חוב ל-NAV"
-
         if sector == "יזום נדל\"ן":
             return self.score_metric(self.inputs.equity_ratio, [40, 30, 22, 15], reverse=True, missing_score=4.0), "שיעור הון עצמי"
-
         if sector == "פיננסים חוץ בנקאיים":
             return self.score_metric(self.inputs.equity_to_assets, [28, 22, 16, 12], reverse=True, missing_score=4.0), "הון למאזן"
-
         return 3.0, "מדד ענפי"
 
     def calc_fundamental_risk(self) -> float:
@@ -419,55 +403,36 @@ class IsraeliBondAnalyzer:
 
     @staticmethod
     def get_risk_label(score: float) -> Tuple[str, str]:
-        if score < 2.0:
-            return "נמוך", "#00cc96"
-        if score < 2.8:
-            return "מתון", "#7BC8A4"
-        if score < 3.5:
-            return "בינוני", "#FFA15A"
-        if score < 4.2:
-            return "גבוה", "#EF553B"
+        if score < 2.0: return "נמוך", "#00cc96"
+        if score < 2.8: return "מתון", "#7BC8A4"
+        if score < 3.5: return "בינוני", "#FFA15A"
+        if score < 4.2: return "גבוה", "#EF553B"
         return "קריטי", "#C0392B"
 
     def get_recommendation(self, score: float) -> str:
-        if score < 2.0:
-            return "האיגרת נראית איכותית יחסית, עם פרופיל סיכון-תשואה טוב ומבנה אשראי סביר."
-        if score < 2.8:
-            return "האיגרת יכולה להתאים בתנאי שהתמחור נשאר סביר ושאין הידרדרות בנזילות או במחזור החוב."
-        if score < 3.5:
-            return "האיגרת דורשת בחינה זהירה יותר, בעיקר של לוח סילוקין, בטוחות, נגישות לשוק ואיכות הקובננטים."
-        if score < 4.2:
-            return "רמת הסיכון גבוהה. נדרשת בדיקת עומק של מקורות ושימושים, סיכון מיחזור ומבנה הסדרה."
-        return "מדובר באיגרת ברמת סיכון גבוהה מאוד. נדרש ניתוח אשראי מלא ותרחישי קיצון."
+        if score < 2.0: return "🟢 מומלץ: האיגרת מציגה פרופיל סיכון-תשואה טוב ומבנה אשראי סביר."
+        if score < 2.8: return "🟡 ראוי לבחינה: האיגרת יכולה להתאים בתנאי שהתמחור נשאר סביר."
+        if score < 3.5: return "🟠 השקעה ספקולטיבית: דורשת בחינה זהירה ומעקב צמוד (לוח סילוקין, בטוחות)."
+        if score < 4.2: return "🔴 רמת סיכון גבוהה: מתאימה רק לאחר בדיקה מעמיקה של מקורות ושימושים והיתכנות מחזור."
+        return "⛔ אזהרת מצוקה (Distress): נדרשת הבנה מעמיקה של תרחישי קיצון והסדרי חוב אפשריים."
 
     def get_metrics_summary(self) -> List[str]:
         items = []
-
         nd = self.derived["nd_ebitda"]
         cov = self.derived["coverage"]
         su = self.derived["sources_to_uses_12m"]
         cs = self.derived["cash_to_st_debt"]
 
-        if nd is not None and nd > 5:
-            items.append(f"מינוף מהותי: חוב נטו ל-EBITDA של {nd:.2f}x")
-        if cov is not None and cov < 2:
-            items.append(f"כיסוי ריבית חלש יחסית: {cov:.2f}x")
-        if su is not None and su < 1.0:
-            items.append(f"מקורות לשימושים 12 חודשים מתחת ל-1: {su:.2f}x")
-        if cs is not None and cs < 0.7:
-            items.append(f"מזומן מול חלויות 12 חודשים חלש: {cs:.2f}x")
-        if self.inputs.spread > 4:
-            items.append(f"מרווח גבוה לשוק המקומי: {self.inputs.spread:.2f}%")
-        if self.inputs.rating_outlook in ["שלילי", "בבחינה"]:
-            items.append(f"אופק דירוג מאותת על לחץ: {self.inputs.rating_outlook}")
-        if self.inputs.market_liquidity == "נמוכה":
-            items.append("סחירות נמוכה יחסית עלולה להקשות על כניסה ויציאה")
-        if self.inputs.covenant_strength == "חלש":
-            items.append("חבילת אמות המידה חלשה יחסית")
+        if nd is not None and nd > 5: items.append(f"מינוף מהותי: חוב נטו ל-EBITDA של {nd:.2f}x")
+        if cov is not None and cov < 2: items.append(f"כיסוי ריבית חלש יחסית: {cov:.2f}x")
+        if su is not None and su < 1.0: items.append(f"מקורות לשימושים 12 חודשים מתחת ל-1: {su:.2f}x")
+        if cs is not None and cs < 0.7: items.append(f"מזומן מול חלויות 12 חודשים חלש: {cs:.2f}x")
+        if self.inputs.spread > 4: items.append(f"מרווח גבוה לשוק המקומי: {self.inputs.spread:.2f}%")
+        if self.inputs.rating_outlook in ["שלילי", "בבחינה"]: items.append(f"אופק דירוג מאותת על לחץ: {self.inputs.rating_outlook}")
+        if self.inputs.market_liquidity == "נמוכה": items.append("סחירות נמוכה יחסית עלולה להקשות על כניסה ויציאה")
+        if self.inputs.covenant_strength == "חלש": items.append("חבילת אמות המידה חלשה יחסית")
 
-        if not items:
-            items.append("לא זוהו כרגע נורות אזהרה חריגות במודל הבסיסי")
-
+        if not items: items.append("לא זוהו כרגע נורות אזהרה חריגות במודל הבסיסי")
         return items
 
     def get_score_breakdown(self) -> Dict[str, float]:
@@ -483,17 +448,12 @@ class IsraeliBondAnalyzer:
     def build_record(self) -> Dict[str, Any]:
         final_score = self.get_final_score()
         risk_label, risk_color = self.get_risk_label(final_score)
-
         return asdict(BondRecord(
             name=self.inputs.name,
             created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             inputs=asdict(self.inputs),
             derived=self.derived,
-            scores={
-                **self.get_score_breakdown(),
-                "risk_label": risk_label,
-                "risk_color": risk_color,
-            }
+            scores={**self.get_score_breakdown(), "risk_label": risk_label, "risk_color": risk_color}
         ))
 
 
@@ -501,20 +461,16 @@ CREAM = "#F5EDD6"
 GOLD = "#C9A96E"
 PANEL = "#12161F"
 
-
 def create_gauge(score: float, title: str) -> go.Figure:
-    if score < 2.0:
-        color = "#00cc96"
-    elif score < 3.5:
-        color = "#FFA15A"
-    else:
-        color = "#EF553B"
+    if score < 2.0: color = "#00cc96"
+    elif score < 3.5: color = "#FFA15A"
+    else: color = "#EF553B"
 
     fig = go.Figure(
         go.Indicator(
             mode="gauge",
             value=score,
-            domain={"x": [0, 1], "y": [0, 1]},
+            domain={"x": [0, 1], "y": [0, 0.85]},
             title={"text": title, "font": {"size": 15, "color": CREAM}},
             gauge={
                 "axis": {"range": [1, 5], "tickwidth": 1, "tickcolor": GOLD},
@@ -535,7 +491,6 @@ def create_gauge(score: float, title: str) -> go.Figure:
     fig.update_layout(height=230, margin=dict(l=10, r=10, t=35, b=10), paper_bgcolor="rgba(0,0,0,0)")
     return fig
 
-
 def create_comparison_radar(records: List[Dict[str, Any]]) -> go.Figure:
     categories = ["פונדמנטלי", "נזילות ומיחזור", "מבנה סדרה", "תמחור שוק", "איכותני"]
     palette = [GOLD, "#C0392B", "#2980B9", "#27AE60", "#8E44AD", "#E67E22", "#16A085"]
@@ -548,13 +503,16 @@ def create_comparison_radar(records: List[Dict[str, Any]]) -> go.Figure:
         theta_loop = categories + [categories[0]]
         color = palette[idx % len(palette)]
 
+        fill_c = color
+        if color.startswith("#"):
+            h = color.lstrip("#")
+            fill_c = f"rgba({int(h[0:2], 16)}, {int(h[2:4], 16)}, {int(h[4:6], 16)}, 0.15)"
+
         fig.add_trace(go.Scatterpolar(
-            r=vals_loop,
-            theta=theta_loop,
-            fill="toself",
+            r=vals_loop, theta=theta_loop, fill="toself",
             name=record.get("name", f"איגרת {idx + 1}"),
             line=dict(color=color, width=2),
-            opacity=0.65
+            fillcolor=fill_c
         ))
 
     fig.update_layout(
@@ -572,7 +530,6 @@ def create_comparison_radar(records: List[Dict[str, Any]]) -> go.Figure:
     )
     return fig
 
-
 APP_CSS = """
 <style>
 :root {
@@ -582,20 +539,28 @@ APP_CSS = """
   --panel: #12161F;
   --border: rgba(201,169,110,0.35);
 }
-.stApp {
-  direction: rtl !important;
-  background: var(--dark) !important;
+
+.stApp, .stApp > header, [data-testid="stAppViewContainer"] {
+  background-color: var(--dark) !important;
   color: var(--cream) !important;
 }
-h1, h2, h3, .stMarkdown, label, p, div, span {
+
+p, span, div, label, h1, h2, h3, .stMarkdown {
   direction: rtl !important;
   text-align: right !important;
+  color: var(--cream) !important;
 }
+
+[data-testid="stMetricValue"] div { color: var(--cream) !important; }
+[data-testid="stMetricLabel"] * { color: #A8A8A8 !important; }
+[data-testid="stMetricDelta"] svg { display: none !important; }
+.st-visually-hidden, .visually-hidden { display: none !important; }
+
 .block-title {
   font-size: 0.83rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--gold);
+  color: var(--gold) !important;
   margin-bottom: 10px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
@@ -623,7 +588,7 @@ h1, h2, h3, .stMarkdown, label, p, div, span {
   border: 1px solid var(--border);
 }
 .small-muted {
-  color: #A8A8A8;
+  color: #A8A8A8 !important;
   font-size: 0.92rem;
 }
 [data-testid="stMetric"] {
@@ -642,71 +607,51 @@ h1, h2, h3, .stMarkdown, label, p, div, span {
 .stButton > button {
   border-radius: 10px !important;
 }
-div[data-testid="stDataFrame"] {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
+
+[data-testid="stDataFrame"] { direction: ltr !important; }
+[data-testid="stDataFrame"] div, [data-testid="stDataFrame"] span { color: var(--cream) !important; }
+
+table { width: 100%; color: var(--cream) !important; }
+th { color: var(--gold) !important; border-bottom: 1px solid var(--border) !important; text-align: right !important;}
+td { border-bottom: 1px solid rgba(255,255,255,0.05) !important; text-align: right !important;}
 </style>
 """
 
-
 def fmt_ratio(value: Optional[float], suffix: str = "x") -> str:
-    if value is None:
-        return "לא זמין"
+    if value is None: return "לא זמין"
     return f"{value:.2f}{suffix}"
 
-
 def fmt_pct(value: Optional[float]) -> str:
-    if value is None:
-        return "לא זמין"
+    if value is None: return "לא זמין"
     return f"{value:.2f}%"
-
 
 def build_input_object(values: Dict[str, Any]) -> BondInputs:
     return BondInputs(
-        name=values["name"].strip(),
-        sector=values["sector"],
-        rating=values["rating"],
-        rating_outlook=values["rating_outlook"],
-        linkage_type=values["linkage_type"],
-        collateral_type=values["collateral_type"],
-        seniority=values["seniority"],
-        covenant_strength=values["covenant_strength"],
-        market_liquidity=values["market_liquidity"],
-        ytm=float(values["ytm"]),
-        spread=float(values["spread"]),
-        duration=float(values["duration"]),
-        total_debt=float(values["total_debt"]),
-        cash=float(values["cash"]),
-        ebitda=safe_float(values.get("ebitda")),
-        operating_profit=safe_float(values.get("operating_profit")),
-        interest_expense=safe_float(values.get("interest_expense")),
-        debt_due_12m=float(values["debt_due_12m"]),
-        expected_cashflow_12m=float(values["expected_cashflow_12m"]),
-        unused_credit_lines=float(values["unused_credit_lines"]),
-        capex_12m=float(values["capex_12m"]),
-        dividends_12m=float(values["dividends_12m"]),
-        ltv=safe_float(values.get("ltv")),
-        debt_to_nav=safe_float(values.get("debt_to_nav")),
-        equity_ratio=safe_float(values.get("equity_ratio")),
-        equity_to_assets=safe_float(values.get("equity_to_assets")),
+        name=values["name"].strip(), sector=values["sector"], rating=values["rating"],
+        rating_outlook=values["rating_outlook"], linkage_type=values["linkage_type"],
+        expected_inflation=values["expected_inflation"], collateral_type=values["collateral_type"],
+        seniority=values["seniority"], covenant_strength=values["covenant_strength"], 
+        market_liquidity=values["market_liquidity"], ytm=float(values["ytm"]), 
+        spread=float(values["spread"]), duration=float(values["duration"]),
+        total_debt=float(values["total_debt"]), cash=float(values["cash"]),
+        ebitda=safe_float(values.get("ebitda")), operating_profit=safe_float(values.get("operating_profit")),
+        interest_expense=safe_float(values.get("interest_expense")), debt_due_12m=float(values["debt_due_12m"]),
+        expected_cashflow_12m=float(values["expected_cashflow_12m"]), unused_credit_lines=float(values["unused_credit_lines"]),
+        capex_12m=float(values["capex_12m"]), dividends_12m=float(values["dividends_12m"]),
+        ltv=safe_float(values.get("ltv")), debt_to_nav=safe_float(values.get("debt_to_nav")),
+        equity_ratio=safe_float(values.get("equity_ratio")), equity_to_assets=safe_float(values.get("equity_to_assets")),
         qualitative_risk=float(values["qualitative_risk"]),
     )
-
 
 def input_validation_errors(values: Dict[str, Any]) -> List[str]:
     errors = []
     sector = values["sector"]
     config = SECTOR_FIELD_CONFIG[sector]
 
-    if not values["name"].strip():
-        errors.append("יש להזין שם אג\"ח.")
-    if values["duration"] < 0:
-        errors.append("מח\"מ לא יכול להיות שלילי.")
-    if values["spread"] < 0:
-        errors.append("מרווח לא יכול להיות שלילי.")
-    if values["ytm"] < -10:
-        errors.append("תשואה לפדיון נראית חריגה מאוד.")
+    if not values["name"].strip(): errors.append("יש להזין שם אג\"ח.")
+    if values["duration"] < 0: errors.append("מח\"מ לא יכול להיות שלילי.")
+    if values["spread"] < 0: errors.append("מרווח לא יכול להיות שלילי.")
+    if values["ytm"] < -10: errors.append("תשואה לפדיון נראית חריגה מאוד.")
     if values["total_debt"] < 0 or values["cash"] < 0 or values["debt_due_12m"] < 0:
         errors.append("חוב, מזומן וחלויות לא יכולים להיות שליליים.")
     if values["unused_credit_lines"] < 0 or values["capex_12m"] < 0 or values["dividends_12m"] < 0:
@@ -714,26 +659,17 @@ def input_validation_errors(values: Dict[str, Any]) -> List[str]:
     if values["qualitative_risk"] < 1 or values["qualitative_risk"] > 5:
         errors.append("ציון איכותני חייב להיות בין 1 ל-5.")
 
-    if config["show_ebitda"] and values.get("ebitda") is None:
-        errors.append("יש להזין EBITDA עבור הסקטור שנבחר.")
-    if config["show_operating_profit"] and values.get("operating_profit") is None:
-        errors.append("יש להזין רווח תפעולי עבור הסקטור שנבחר.")
-    if config["show_interest_expense"] and values.get("interest_expense") is None:
-        errors.append("יש להזין הוצאות מימון עבור הסקטור שנבחר.")
-    if values.get("expected_cashflow_12m") is None:
-        errors.append("יש להזין תזרים / מקורות חזויים ל-12 חודשים.")
+    if config["show_ebitda"] and values.get("ebitda") is None: errors.append("יש להזין EBITDA עבור הסקטור שנבחר.")
+    if config["show_operating_profit"] and values.get("operating_profit") is None: errors.append("יש להזין רווח תפעולי עבור הסקטור שנבחר.")
+    if config["show_interest_expense"] and values.get("interest_expense") is None: errors.append("יש להזין הוצאות מימון עבור הסקטור שנבחר.")
+    if values.get("expected_cashflow_12m") is None: errors.append("יש להזין תזרים / מקורות חזויים ל-12 חודשים.")
 
-    if config["show_ltv"] and values.get("ltv") is None:
-        errors.append("יש להזין LTV עבור נדל\"ן מניב.")
-    if config["show_debt_to_nav"] and values.get("debt_to_nav") is None:
-        errors.append("יש להזין חוב ל-NAV עבור חברת החזקות.")
-    if config["show_equity_ratio"] and values.get("equity_ratio") is None:
-        errors.append("יש להזין שיעור הון עצמי עבור יזום נדל\"ן.")
-    if config["show_equity_to_assets"] and values.get("equity_to_assets") is None:
-        errors.append("יש להזין הון למאזן עבור פיננסים חוץ בנקאיים.")
+    if config["show_ltv"] and values.get("ltv") is None: errors.append("יש להזין LTV עבור נדל\"ן מניב.")
+    if config["show_debt_to_nav"] and values.get("debt_to_nav") is None: errors.append("יש להזין חוב ל-NAV עבור חברת החזקות.")
+    if config["show_equity_ratio"] and values.get("equity_ratio") is None: errors.append("יש להזין שיעור הון עצמי עבור יזום נדל\"ן.")
+    if config["show_equity_to_assets"] and values.get("equity_to_assets") is None: errors.append("יש להזין הון למאזן עבור פיננסים חוץ בנקאיים.")
 
     return errors
-
 
 def build_compare_dataframe(records: List[Dict[str, Any]]) -> pd.DataFrame:
     rows = []
@@ -745,23 +681,19 @@ def build_compare_dataframe(records: List[Dict[str, Any]]) -> pd.DataFrame:
         rows.append({
             "שם האג\"ח": record.get("name"),
             "סקטור": inputs.get("sector"),
+            "הצמדה": inputs.get("linkage_type"),
             "דירוג": inputs.get("rating"),
-            "אופק": inputs.get("rating_outlook"),
-            "תשואה": fmt_pct(inputs.get("ytm")),
+            "תשואה נומינלית (חזויה)": fmt_pct(derived.get("nominal_ytm")),
             "מרווח": fmt_pct(inputs.get("spread")),
             "מח\"מ": f"{inputs.get('duration', 0):.2f}",
             "חוב נטו/EBITDA": fmt_ratio(derived.get("nd_ebitda")),
             "כיסוי ריבית": fmt_ratio(derived.get("coverage")),
-            "מקורות/שימושים 12ח": fmt_ratio(derived.get("sources_to_uses_12m")),
-            "נזילות שוק": inputs.get("market_liquidity"),
+            "מקורות/שימושים": fmt_ratio(derived.get("sources_to_uses_12m")),
             "בטוחה": inputs.get("collateral_type"),
-            "קובננטים": inputs.get("covenant_strength"),
             "ציון סופי": scores.get("ציון סופי"),
             "רמת סיכון": scores.get("risk_label"),
-            "עודכן": record.get("created_at"),
         })
     return pd.DataFrame(rows)
-
 
 def main() -> None:
     st.set_page_config(page_title="מערכת Pro לניתוח אג\"ח ישראליות", layout="wide", page_icon="⚜️")
@@ -772,43 +704,41 @@ def main() -> None:
 
     st.markdown("""
     <div style='text-align:center; padding: 1.2rem 0 1.0rem;'>
-        <div style='font-size:0.82rem; letter-spacing:0.18em; color:#A59068; text-align:center;'>
+        <div style='font-size:0.82rem; letter-spacing:0.18em; color:#A59068; text-align:center !important;'>
             ISRAELI CORPORATE BOND ANALYTICS
         </div>
-        <h1 style='color:#C9A96E; text-align:center; margin-top:8px;'>
+        <h1 style='color:#C9A96E; text-align:center !important; margin-top:8px;'>
             מערכת Pro לניתוח אג"ח ישראליות
         </h1>
-        <div style='color:#A8A8A8; text-align:center; margin-top:4px;'>
-            טופס דינמי לפי סקטור עם דגש על נזילות, מיחזור חוב, בטוחות ותמחור
+        <div style='color:#A8A8A8; text-align:center !important; margin-top:4px;'>
+            מודל ייעודי לשוק המקומי עם דגש על נזילות, מיחזור חוב, בטוחות ותמחור
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    tab_input, tab_results, tab_compare = st.tabs([
-        "הזנת נתונים",
-        "ניתוח אשראי",
-        "מעבדת השוואות"
-    ])
+    tab_input, tab_results, tab_compare = st.tabs(["הזנת נתונים", "ניתוח אשראי", "מעבדת השוואות"])
 
     with tab_input:
         values: Dict[str, Any] = {}
-
         st.markdown("<div class='block-title'>פרטי אג\"ח בסיסיים</div>", unsafe_allow_html=True)
-        t1, t2, t3 = st.columns(3)
-        with t1:
-            values["name"] = st.text_input("שם / זיהוי האג\"ח", value="אג\"ח דוגמה").strip()
-        with t2:
-            values["sector"] = st.selectbox("סקטור", SECTOR_OPTIONS, index=0)
-        with t3:
-            values["linkage_type"] = st.selectbox("סוג הצמדה / ריבית", LINKAGE_OPTIONS, index=0)
+        t1, t2, t3, t4 = st.columns(4)
+        with t1: values["name"] = st.text_input("שם / זיהוי האג\"ח", value="אג\"ח דוגמה").strip()
+        with t2: values["sector"] = st.selectbox("סקטור", SECTOR_OPTIONS, index=0)
+        with t3: 
+            values["linkage_type"] = st.selectbox("סוג הצמדה", LINKAGE_OPTIONS, index=0)
+        with t4:
+            if values["linkage_type"] == "צמוד מדד":
+                values["expected_inflation"] = st.number_input("ציפיית אינפלציה (%)", value=2.5, step=0.1)
+            else:
+                values["expected_inflation"] = 0.0
+                st.number_input("ציפיית אינפלציה (%)", value=0.0, disabled=True, help="רלוונטי רק לאג\"ח צמוד")
 
         config = SECTOR_FIELD_CONFIG[values["sector"]]
-
         c1, c2, c3 = st.columns(3, gap="large")
 
         with c1:
             st.markdown("<div class='block-title'>תמחור ומבנה סדרה</div>", unsafe_allow_html=True)
-            values["ytm"] = st.number_input("תשואה לפדיון (%)", value=4.50, step=0.10)
+            values["ytm"] = st.number_input(f"תשואה לפדיון ({'ריאלית' if values['linkage_type']=='צמוד מדד' else 'נומינלית'}) %", value=4.50, step=0.10)
             values["spread"] = st.number_input("מרווח ממשלתי (%)", value=2.00, step=0.10)
             values["duration"] = st.number_input("מח\"מ (שנים)", value=3.00, step=0.10)
             values["rating"] = st.selectbox("דירוג", RATING_OPTIONS, index=8)
@@ -822,56 +752,41 @@ def main() -> None:
             st.markdown("<div class='block-title'>נתוני אשראי עיקריים</div>", unsafe_allow_html=True)
             values["total_debt"] = st.number_input("סך חוב פיננסי", min_value=0.0, value=2000.0, step=50.0)
             values["cash"] = st.number_input("מזומן ונזילות", min_value=0.0, value=350.0, step=25.0)
-
             values["ebitda"] = None
-            if config["show_ebitda"]:
-                values["ebitda"] = st.number_input("EBITDA", value=280.0, step=10.0)
-
+            if config["show_ebitda"]: values["ebitda"] = st.number_input("EBITDA", value=280.0, step=10.0)
             values["operating_profit"] = None
-            if config["show_operating_profit"]:
-                values["operating_profit"] = st.number_input("רווח תפעולי", value=180.0, step=10.0)
-
+            if config["show_operating_profit"]: values["operating_profit"] = st.number_input("רווח תפעולי", value=180.0, step=10.0)
             values["interest_expense"] = None
-            if config["show_interest_expense"]:
-                values["interest_expense"] = st.number_input("הוצאות מימון", min_value=0.0, value=75.0, step=5.0)
+            if config["show_interest_expense"]: values["interest_expense"] = st.number_input("הוצאות מימון", min_value=0.0, value=75.0, step=5.0)
 
         with c3:
             st.markdown("<div class='block-title'>נזילות, מיחזור ו-12 חודשים קדימה</div>", unsafe_allow_html=True)
             values["debt_due_12m"] = st.number_input("חלויות חוב ב-12 חודשים", min_value=0.0, value=280.0, step=10.0)
             values["expected_cashflow_12m"] = st.number_input(config["label_cashflow"], min_value=0.0, value=220.0, step=10.0)
             values["unused_credit_lines"] = 0.0
-            if config["show_unused_credit_lines"]:
-                values["unused_credit_lines"] = st.number_input("קווי אשראי לא מנוצלים", min_value=0.0, value=150.0, step=10.0)
-
+            if config["show_unused_credit_lines"]: values["unused_credit_lines"] = st.number_input("קווי אשראי לא מנוצלים", min_value=0.0, value=150.0, step=10.0)
             values["capex_12m"] = 0.0
-            if config["show_capex"]:
-                values["capex_12m"] = st.number_input("Capex חזוי ל-12 חודשים", min_value=0.0, value=60.0, step=5.0)
-
+            if config["show_capex"]: values["capex_12m"] = st.number_input("Capex חזוי ל-12 חודשים", min_value=0.0, value=60.0, step=5.0)
             values["dividends_12m"] = 0.0
-            if config["show_dividends"]:
-                values["dividends_12m"] = st.number_input("דיבידנדים / חלוקות חזויות", min_value=0.0, value=20.0, step=5.0)
-
+            if config["show_dividends"]: values["dividends_12m"] = st.number_input("דיבידנדים / חלוקות חזויות", min_value=0.0, value=20.0, step=5.0)
             values["qualitative_risk"] = st.slider("ציון איכותני ידני", 1.0, 5.0, 3.0, 0.5)
 
         st.divider()
         st.markdown("<div class='block-title'>מדד ענפי רלוונטי</div>", unsafe_allow_html=True)
-
         values["ltv"] = None
         values["debt_to_nav"] = None
         values["equity_ratio"] = None
         values["equity_to_assets"] = None
 
-        if config["show_ltv"]:
-            values["ltv"] = st.number_input("LTV (%)", min_value=0.0, max_value=100.0, value=52.0, step=1.0)
-
-        if config["show_debt_to_nav"]:
-            values["debt_to_nav"] = st.number_input("חוב ל-NAV (%)", min_value=0.0, max_value=100.0, value=24.0, step=1.0)
-
-        if config["show_equity_ratio"]:
-            values["equity_ratio"] = st.number_input("שיעור הון עצמי (%)", min_value=0.0, max_value=100.0, value=28.0, step=1.0)
-
-        if config["show_equity_to_assets"]:
-            values["equity_to_assets"] = st.number_input("הון למאזן (%)", min_value=0.0, max_value=100.0, value=18.0, step=1.0)
+        sp1, sp2, sp3, sp4 = st.columns(4)
+        with sp1:
+            if config["show_ltv"]: values["ltv"] = st.number_input("LTV (%)", min_value=0.0, max_value=100.0, value=52.0, step=1.0)
+        with sp2:
+            if config["show_debt_to_nav"]: values["debt_to_nav"] = st.number_input("חוב ל-NAV (%)", min_value=0.0, max_value=100.0, value=24.0, step=1.0)
+        with sp3:
+            if config["show_equity_ratio"]: values["equity_ratio"] = st.number_input("שיעור הון עצמי (%)", min_value=0.0, max_value=100.0, value=28.0, step=1.0)
+        with sp4:
+            if config["show_equity_to_assets"]: values["equity_to_assets"] = st.number_input("הון למאזן (%)", min_value=0.0, max_value=100.0, value=18.0, step=1.0)
 
         if not any([config["show_ltv"], config["show_debt_to_nav"], config["show_equity_ratio"], config["show_equity_to_assets"]]):
             st.info("לסקטור שנבחר אין כרגע שדה ענפי ייעודי במודל, והניתוח יתבסס על הפרמטרים הכלליים.")
@@ -879,8 +794,7 @@ def main() -> None:
     errors = input_validation_errors(values)
     if errors:
         with tab_results:
-            for error in errors:
-                st.error(error)
+            for error in errors: st.error(error)
         with tab_compare:
             st.info("השלם את כל השדות הנדרשים בטאב הזנת נתונים.")
         return
@@ -905,11 +819,11 @@ def main() -> None:
                         {inputs.sector} | {inputs.rating} | {inputs.linkage_type}
                     </div>
                 </div>
-                <div style='text-align:left;'>
+                <div style='text-align:left !important;'>
                     <div class='risk-badge' style='border-color:{risk_color}; color:{risk_color};'>
                         רמת סיכון: {risk_label}
                     </div>
-                    <div style='font-size:2.7rem; color:{risk_color}; margin-top:8px; text-align:left;'>
+                    <div style='font-size:2.7rem; color:{risk_color}; margin-top:8px;'>
                         {final_score:.2f}
                     </div>
                 </div>
@@ -918,21 +832,23 @@ def main() -> None:
         """, unsafe_allow_html=True)
 
         g1, g2, g3 = st.columns(3)
-        with g1:
-            st.plotly_chart(create_gauge(scores["פונדמנטלי"], "סיכון פונדמנטלי"), use_container_width=True)
-        with g2:
-            st.plotly_chart(create_gauge(scores["נזילות ומיחזור"], "נזילות ומיחזור"), use_container_width=True)
-        with g3:
-            st.plotly_chart(create_gauge(final_score, "ציון סופי"), use_container_width=True)
+        with g1: st.plotly_chart(create_gauge(scores["פונדמנטלי"], "סיכון פונדמנטלי"), use_container_width=True)
+        with g2: st.plotly_chart(create_gauge(scores["נזילות ומיחזור"], "נזילות ומיחזור"), use_container_width=True)
+        with g3: st.plotly_chart(create_gauge(final_score, "ציון סופי"), use_container_width=True)
 
         st.divider()
         st.markdown("<div class='block-title'>מדדים מרכזיים</div>", unsafe_allow_html=True)
 
+        nd_val = derived["nd_ebitda"] or 0
+        cov_val = derived["coverage"] or 999
+        cs_val = derived["cash_to_st_debt"] or 999
+        su_val = derived["sources_to_uses_12m"] or 999
+
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("חוב נטו / EBITDA", fmt_ratio(derived["nd_ebitda"]), delta="גבוה" if (derived["nd_ebitda"] or 0) > 5 else "סביר")
-        m2.metric("כיסוי ריבית", fmt_ratio(derived["coverage"]), delta="חלש" if (derived["coverage"] is not None and derived["coverage"] < 2) else "סביר")
-        m3.metric("מזומן / חלויות 12ח", fmt_ratio(derived["cash_to_st_debt"]), delta="לחוץ" if (derived["cash_to_st_debt"] is not None and derived["cash_to_st_debt"] < 0.7) else "סביר")
-        m4.metric("מקורות / שימושים 12ח", fmt_ratio(derived["sources_to_uses_12m"]), delta="מתחת ל-1" if (derived["sources_to_uses_12m"] is not None and derived["sources_to_uses_12m"] < 1.0) else "סביר")
+        m1.metric("חוב נטו / EBITDA", fmt_ratio(derived["nd_ebitda"]), delta="🔴 גבוה" if nd_val > 5 else "🟢 סביר", delta_color="off")
+        m2.metric("כיסוי ריבית", fmt_ratio(derived["coverage"]), delta="🔴 חלש" if cov_val < 2 else "🟢 סביר", delta_color="off")
+        m3.metric("מזומן / חלויות 12ח", fmt_ratio(derived["cash_to_st_debt"]), delta="🔴 לחוץ" if cs_val < 0.7 else "🟢 סביר", delta_color="off")
+        m4.metric("מקורות / שימושים 12ח", fmt_ratio(derived["sources_to_uses_12m"]), delta="🔴 מתחת ל-1" if su_val < 1.0 else "🟢 סביר", delta_color="off")
 
         st.divider()
         st.markdown("<div class='block-title'>פירוט ציונים</div>", unsafe_allow_html=True)
@@ -956,8 +872,10 @@ def main() -> None:
 
         st.divider()
         st.markdown("<div class='block-title'>נתוני רקע משלימים</div>", unsafe_allow_html=True)
+        
         extra_rows = [
-            {"שדה": "תשואה לפדיון", "ערך": fmt_pct(inputs.ytm)},
+            {"שדה": "תשואה לפדיון (הוזנה)", "ערך": fmt_pct(inputs.ytm)},
+            {"שדה": "תשואה נומינלית מותאמת", "ערך": fmt_pct(derived["nominal_ytm"])},
             {"שדה": "מרווח ממשלתי", "ערך": fmt_pct(inputs.spread)},
             {"שדה": "מח\"מ", "ערך": f"{inputs.duration:.2f}"},
             {"שדה": "בטוחה", "ערך": inputs.collateral_type},
@@ -967,7 +885,7 @@ def main() -> None:
             {"שדה": "מקורות ל-12 חודשים", "ערך": f"{derived['liquidity_sources_12m']:.2f}"},
             {"שדה": "שימושים ל-12 חודשים", "ערך": f"{derived['uses_12m']:.2f}"},
         ]
-        st.dataframe(pd.DataFrame(extra_rows), hide_index=True, use_container_width=True)
+        st.table(pd.DataFrame(extra_rows).set_index("שדה"))
 
         save_col, export_col = st.columns([1, 1])
         with save_col:
@@ -978,26 +896,16 @@ def main() -> None:
 
         with export_col:
             single_df = pd.DataFrame([{
-                "שם האג\"ח": inputs.name,
-                "סקטור": inputs.sector,
-                "דירוג": inputs.rating,
-                "אופק": inputs.rating_outlook,
-                "תשואה": inputs.ytm,
-                "מרווח": inputs.spread,
-                "מח\"מ": inputs.duration,
-                "חוב נטו/EBITDA": derived["nd_ebitda"],
-                "כיסוי ריבית": derived["coverage"],
-                "מזומן/חלויות 12ח": derived["cash_to_st_debt"],
-                "מקורות/שימושים 12ח": derived["sources_to_uses_12m"],
-                "ציון פונדמנטלי": scores["פונדמנטלי"],
-                "ציון נזילות": scores["נזילות ומיחזור"],
-                "ציון מבנה סדרה": scores["מבנה סדרה"],
-                "ציון תמחור": scores["תמחור שוק"],
-                "ציון איכותני": scores["איכותני"],
-                "ציון סופי": scores["ציון סופי"],
-                "רמת סיכון": scores["risk_label"],
+                "שם האג\"ח": inputs.name, "סקטור": inputs.sector, "הצמדה": inputs.linkage_type,
+                "דירוג": inputs.rating, "אופק": inputs.rating_outlook, "תשואה (מוזנת)": inputs.ytm,
+                "תשואה נומינלית מותאמת": derived["nominal_ytm"],
+                "מרווח": inputs.spread, "מח\"מ": inputs.duration, "חוב נטו/EBITDA": derived["nd_ebitda"],
+                "כיסוי ריבית": derived["coverage"], "מזומן/חלויות 12ח": derived["cash_to_st_debt"],
+                "מקורות/שימושים 12ח": derived["sources_to_uses_12m"], "ציון פונדמנטלי": scores["פונדמנטלי"],
+                "ציון נזילות": scores["נזילות ומיחזור"], "ציון מבנה סדרה": scores["מבנה סדרה"],
+                "ציון תמחור": scores["תמחור שוק"], "ציון איכותני": scores["איכותני"],
+                "ציון סופי": scores["ציון סופי"], "רמת סיכון": scores["risk_label"],
             }])
-
             st.download_button(
                 label="ייצא ניתוח נוכחי ל-CSV",
                 data=single_df.to_csv(index=False).encode("utf-8-sig"),
@@ -1015,7 +923,7 @@ def main() -> None:
         else:
             with st.expander("ניהול איגרות שמורות", expanded=False):
                 names = [r.get("name", "") for r in saved_records]
-                selected_delete = st.multiselect("בחר איגרות להסרה", options=names)
+                selected_delete = st.multiselect("בחר איגרות להסרה", options=names, placeholder=" ")
 
                 c_btn1, c_btn2 = st.columns(2)
                 with c_btn1:
@@ -1034,31 +942,29 @@ def main() -> None:
                         st.rerun()
 
             st.divider()
+            st.markdown("<div class='block-title'>טבלת השוואה</div>", unsafe_allow_html=True)
+            df_compare = build_compare_dataframe(saved_records)
+            st.dataframe(df_compare, hide_index=True, use_container_width=True)
+
+            st.download_button(
+                label="ייצא טבלת השוואה ל-CSV",
+                data=df_compare.to_csv(index=False).encode("utf-8-sig"),
+                file_name="israeli_bonds_comparison.csv",
+                mime="text/csv"
+            )
+
+            st.divider()
             c_left, c_right = st.columns([1.2, 1], gap="large")
             with c_left:
                 st.markdown("<div class='block-title'>השוואת פרופיל סיכון</div>", unsafe_allow_html=True)
                 st.plotly_chart(create_comparison_radar(saved_records), use_container_width=True)
 
             with c_right:
-                st.markdown("<div class='block-title'>טבלת השוואה</div>", unsafe_allow_html=True)
-                df_compare = build_compare_dataframe(saved_records)
-                st.dataframe(df_compare, hide_index=True, use_container_width=True)
-
-                st.download_button(
-                    label="ייצא טבלת השוואה ל-CSV",
-                    data=df_compare.to_csv(index=False).encode("utf-8-sig"),
-                    file_name="israeli_bonds_comparison.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
-
-            st.divider()
-            st.markdown("<div class='block-title'>מיון מהיר לפי ציון סופי</div>", unsafe_allow_html=True)
-            df_rank = build_compare_dataframe(saved_records).copy()
-            df_rank["ציון סופי"] = pd.to_numeric(df_rank["ציון סופי"], errors="coerce")
-            df_rank = df_rank.sort_values("ציון סופי", ascending=True)
-            st.dataframe(df_rank, hide_index=True, use_container_width=True)
-
+                st.markdown("<div class='block-title'>מיון מהיר לפי ציון סופי</div>", unsafe_allow_html=True)
+                df_rank = df_compare[["שם האג\"ח", "רמת סיכון", "ציון סופי"]].copy()
+                df_rank["ציון סופי"] = pd.to_numeric(df_rank["ציון סופי"], errors="coerce")
+                df_rank = df_rank.sort_values("ציון סופי", ascending=True)
+                st.dataframe(df_rank, hide_index=True, use_container_width=True)
 
 if __name__ == "__main__":
     main()
