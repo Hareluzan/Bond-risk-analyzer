@@ -130,7 +130,7 @@ def create_gauge(score, title):
     return fig
 
 def create_comparison_radar(bonds_list):
-    categories = ['מרווח', 'מח"מ', 'דירוג', 'מינוף', 'נזילות', 'כיסוי ריבית']
+    categories = ['מרווח ממשלתי', 'מח"מ', 'דירוג', 'מינוף', 'נזילות', 'כיסוי ריבית']
     rating_map  = {'AAA':1,'AA':1.5,'A':2,'BBB':3,'BB':4,'B':4.5,'CCC':5,'NR':4.5}
     palette     = [GOLD, "#C0392B", "#2980B9", "#27AE60", "#8E44AD", "#E67E22"]
     fig = go.Figure()
@@ -146,14 +146,23 @@ def create_comparison_radar(bonds_list):
             az.score_metric(d['current_ratio'], [2,1.5,1,0.8], True),
             az.score_metric(d['coverage'],  [5,3,1.5,1], True)
         ]
+        
         clr = palette[idx % len(palette)]
+        
+        # המרה בטוחה של צבע Hex ל-RGBA שקוף לטובת ציור הגרף בלי קריסות
+        if clr.startswith("#"):
+            h = clr.lstrip("#")
+            fill_c = f"rgba({int(h[0:2], 16)}, {int(h[2:4], 16)}, {int(h[4:6], 16)}, 0.15)"
+        else:
+            fill_c = clr
+
         fig.add_trace(go.Scatterpolar(
             r=vals + [vals[0]],
             theta=categories + [categories[0]],
             fill='toself',
             name=bond['name'],
             line=dict(color=clr, width=2),
-            fillcolor=clr.replace("#","rgba(").replace(")",",0.08)") if "#" in clr else clr
+            fillcolor=fill_c
         ))
 
     fig.update_layout(
@@ -598,7 +607,7 @@ def main():
             })
             save_bonds_to_db(st.session_state.saved_bonds)
             st.success(f"האג\"ח '{bond_name}' נשמר בהצלחה ✓")
-            st.rerun() 
+            st.rerun() # מוודא שטאב ההשוואות מתעדכן באותה שנייה
 
     # ──────────────── TAB 3: השוואות ────────────────
     with tab_compare:
@@ -656,6 +665,7 @@ def main():
                         "ביטחונות":        b['data']['collateral'].split("(")[0].strip()
                     } for b in st.session_state.saved_bonds])
                     st.dataframe(df_compare, hide_index=True, use_container_width=True)
+
 
 if __name__ == "__main__":
     main()
