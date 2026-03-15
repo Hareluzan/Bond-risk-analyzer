@@ -101,7 +101,6 @@ PANEL = "#12161F"
 def create_gauge(score, title):
     color = "#00cc96" if score < 2.5 else ("#FFA15A" if score < 3.8 else "#EF553B")
     
-    # השתמשנו במצב "gauge" בלבד (ללא המספר המובנה) כדי למנוע את באג המרכוז
     fig = go.Figure(go.Indicator(
         mode="gauge",
         value=score,
@@ -123,7 +122,6 @@ def create_gauge(score, title):
         }
     ))
     
-    # הוספת המספר בצורה נעוצה (Annotation) כך שתמיד יהיה בדיוק באמצע!
     fig.add_annotation(
         x=0.5, y=0.15,
         text=f"{score:.2f}",
@@ -185,10 +183,9 @@ def create_comparison_radar(bonds_list):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=CREAM, family='Georgia, serif'),
-        # העברת המקרא (Legend) למטה כדי למנוע התנגשויות במסכים קטנים
         legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5,
                     font=dict(color=CREAM, size=12), bgcolor="rgba(0,0,0,0)"),
-        margin=dict(l=70, r=70, t=40, b=80) # הגדלת שוליים למניעת חיתוך טקסט
+        margin=dict(l=70, r=70, t=40, b=80) 
     )
     return fig
 
@@ -361,7 +358,7 @@ hr {
 }
 .stButton > button:hover {
   background: #1e2430 !important;
-  border-color: #EF553B !important; /* אדום במעבר עכבר לכפתורי מחיקה */
+  border-color: #EF553B !important; 
 }
 .stButton > button:hover p {
   color: #EF553B !important;
@@ -603,14 +600,14 @@ def main():
                 bonds_to_delete = st.multiselect(
                     "בחר איגרות להסרה מהמעבדה:", 
                     options=bond_names_list,
-                    placeholder="בחר מרשימת האיגרות..." 
+                    placeholder=" " # שימוש ברווח ריק כדי לדרוס טקסט באנגלית
                 )
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
                 cd1, cd2, cd3 = st.columns([1, 1, 2])
                 with cd1:
-                    if st.button("הסר נבחרים"):
+                    if st.button("הסר נבחרים", use_container_width=True):
                         if bonds_to_delete:
                             st.session_state.saved_bonds = [
                                 b for b in st.session_state.saved_bonds if b['name'] not in bonds_to_delete
@@ -618,7 +615,7 @@ def main():
                             save_bonds_to_db(st.session_state.saved_bonds)
                             st.rerun()
                 with cd2:
-                    if st.button("נקה מסד נתונים"):
+                    if st.button("נקה מסד נתונים", use_container_width=True):
                         st.session_state.saved_bonds = []
                         save_bonds_to_db([])
                         st.rerun()
@@ -626,7 +623,6 @@ def main():
             if st.session_state.saved_bonds:
                 st.divider()
                 
-                # הרחבת הגרף והטבלה כך שיתאימו בצורה מושלמת בלי חיתוכים
                 c1, c2 = st.columns([1.2, 1], gap="large")
 
                 with c1:
