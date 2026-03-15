@@ -45,53 +45,109 @@ MARKET_LIQUIDITY_OPTIONS = ["נמוכה", "בינונית", "גבוהה"]
 
 SECTOR_FIELD_CONFIG = {
     "נדל\"ן מניב": {
-        "show_ffo": True, "show_ebitda": True, "show_operating_profit": True,
-        "show_interest_expense": True, "show_ltv": True, "show_debt_to_nav": False,
-        "show_equity_ratio": False, "show_equity_to_assets": False,
-        "show_unused_credit_lines": True, "show_capex": True, "show_dividends": True,
-        "label_cashflow": "FFO חזוי ל-12 חודשים", "sector_metric_label": "LTV (%)",
+        "show_ffo": True,
+        "show_ebitda": True,
+        "show_operating_profit": True,
+        "show_interest_expense": True,
+        "show_ltv": True,
+        "show_debt_to_nav": False,
+        "show_equity_ratio": False,
+        "show_equity_to_assets": False,
+        "show_unused_credit_lines": True,
+        "show_capex": True,
+        "show_dividends": True,
+        "label_cashflow": "FFO חזוי ל-12 חודשים",
+        "sector_metric_label": "LTV (%)",
     },
     "יזום נדל\"ן": {
-        "show_ffo": True, "show_ebitda": True, "show_operating_profit": True,
-        "show_interest_expense": True, "show_ltv": False, "show_debt_to_nav": False,
-        "show_equity_ratio": True, "show_equity_to_assets": False,
-        "show_unused_credit_lines": True, "show_capex": True, "show_dividends": True,
-        "label_cashflow": "תזרים חזוי / FFO ל-12 חודשים", "sector_metric_label": "שיעור הון עצמי (%)",
+        "show_ffo": True,
+        "show_ebitda": True,
+        "show_operating_profit": True,
+        "show_interest_expense": True,
+        "show_ltv": False,
+        "show_debt_to_nav": False,
+        "show_equity_ratio": True,
+        "show_equity_to_assets": False,
+        "show_unused_credit_lines": True,
+        "show_capex": True,
+        "show_dividends": True,
+        "label_cashflow": "תזרים חזוי / FFO ל-12 חודשים",
+        "sector_metric_label": "שיעור הון עצמי (%)",
     },
     "חברת החזקות": {
-        "show_ffo": False, "show_ebitda": True, "show_operating_profit": True,
-        "show_interest_expense": True, "show_ltv": False, "show_debt_to_nav": True,
-        "show_equity_ratio": False, "show_equity_to_assets": False,
-        "show_unused_credit_lines": True, "show_capex": False, "show_dividends": True,
-        "label_cashflow": "דיבידנדים / מקורות חזויים ל-12 חודשים", "sector_metric_label": "חוב ל-NAV (%)",
+        "show_ffo": False,
+        "show_ebitda": True,
+        "show_operating_profit": True,
+        "show_interest_expense": True,
+        "show_ltv": False,
+        "show_debt_to_nav": True,
+        "show_equity_ratio": False,
+        "show_equity_to_assets": False,
+        "show_unused_credit_lines": True,
+        "show_capex": False,
+        "show_dividends": True,
+        "label_cashflow": "דיבידנדים / מקורות חזויים ל-12 חודשים",
+        "sector_metric_label": "חוב ל-NAV (%)",
     },
     "תעשייה/שירותים": {
-        "show_ffo": False, "show_ebitda": True, "show_operating_profit": True,
-        "show_interest_expense": True, "show_ltv": False, "show_debt_to_nav": False,
-        "show_equity_ratio": False, "show_equity_to_assets": False,
-        "show_unused_credit_lines": True, "show_capex": True, "show_dividends": True,
-        "label_cashflow": "תזרים תפעולי / חזוי ל-12 חודשים", "sector_metric_label": "",
+        "show_ffo": False,
+        "show_ebitda": True,
+        "show_operating_profit": True,
+        "show_interest_expense": True,
+        "show_ltv": False,
+        "show_debt_to_nav": False,
+        "show_equity_ratio": False,
+        "show_equity_to_assets": False,
+        "show_unused_credit_lines": True,
+        "show_capex": True,
+        "show_dividends": True,
+        "label_cashflow": "תזרים תפעולי / חזוי ל-12 חודשים",
+        "sector_metric_label": "",
     },
     "אנרגיה/תשתיות": {
-        "show_ffo": False, "show_ebitda": True, "show_operating_profit": True,
-        "show_interest_expense": True, "show_ltv": False, "show_debt_to_nav": False,
-        "show_equity_ratio": False, "show_equity_to_assets": False,
-        "show_unused_credit_lines": True, "show_capex": True, "show_dividends": True,
-        "label_cashflow": "תזרים חזוי ל-12 חודשים", "sector_metric_label": "",
+        "show_ffo": False,
+        "show_ebitda": True,
+        "show_operating_profit": True,
+        "show_interest_expense": True,
+        "show_ltv": False,
+        "show_debt_to_nav": False,
+        "show_equity_ratio": False,
+        "show_equity_to_assets": False,
+        "show_unused_credit_lines": True,
+        "show_capex": True,
+        "show_dividends": True,
+        "label_cashflow": "תזרים חזוי ל-12 חודשים",
+        "sector_metric_label": "",
     },
     "פיננסים חוץ בנקאיים": {
-        "show_ffo": False, "show_ebitda": False, "show_operating_profit": True,
-        "show_interest_expense": True, "show_ltv": False, "show_debt_to_nav": False,
-        "show_equity_ratio": False, "show_equity_to_assets": True,
-        "show_unused_credit_lines": True, "show_capex": False, "show_dividends": True,
-        "label_cashflow": "מקורות חזויים ל-12 חודשים", "sector_metric_label": "הון למאזן (%)",
+        "show_ffo": False,
+        "show_ebitda": False,
+        "show_operating_profit": True,
+        "show_interest_expense": True,
+        "show_ltv": False,
+        "show_debt_to_nav": False,
+        "show_equity_ratio": False,
+        "show_equity_to_assets": True,
+        "show_unused_credit_lines": True,
+        "show_capex": False,
+        "show_dividends": True,
+        "label_cashflow": "מקורות חזויים ל-12 חודשים",
+        "sector_metric_label": "הון למאזן (%)",
     },
     "כללי": {
-        "show_ffo": False, "show_ebitda": True, "show_operating_profit": True,
-        "show_interest_expense": True, "show_ltv": False, "show_debt_to_nav": False,
-        "show_equity_ratio": False, "show_equity_to_assets": False,
-        "show_unused_credit_lines": True, "show_capex": True, "show_dividends": True,
-        "label_cashflow": "תזרים חזוי ל-12 חודשים", "sector_metric_label": "",
+        "show_ffo": False,
+        "show_ebitda": True,
+        "show_operating_profit": True,
+        "show_interest_expense": True,
+        "show_ltv": False,
+        "show_debt_to_nav": False,
+        "show_equity_ratio": False,
+        "show_equity_to_assets": False,
+        "show_unused_credit_lines": True,
+        "show_capex": True,
+        "show_dividends": True,
+        "label_cashflow": "תזרים חזוי ל-12 חודשים",
+        "sector_metric_label": "",
     },
 }
 
@@ -143,13 +199,15 @@ class BondRecord:
 
 def safe_float(value: Any) -> Optional[float]:
     try:
-        if value in ("", None): return None
+        if value in ("", None):
+            return None
         return float(value)
     except (TypeError, ValueError):
         return None
 
 def load_saved_bonds() -> List[Dict[str, Any]]:
-    if not os.path.exists(DB_FILE): return []
+    if not os.path.exists(DB_FILE):
+        return []
     try:
         with open(DB_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -182,33 +240,51 @@ class IsraeliBondAnalyzer:
         "CCC": 5.0, "CC": 5.0, "C": 5.0, "NR": 4.6
     }
 
-    OUTLOOK_ADJUSTMENT = {"חיובי": -0.15, "יציב": 0.0, "שלילי": 0.20, "בבחינה": 0.30}
+    OUTLOOK_ADJUSTMENT = {
+        "חיובי": -0.15, "יציב": 0.0, "שלילי": 0.20, "בבחינה": 0.30
+    }
 
     COLLATERAL_SCORE = {
         "ללא בטוחה": 5.0, "שעבוד צף": 4.2, "ערבות חברת אם": 3.4,
         "שעבוד מניות": 3.0, "שעבוד ספציפי על נכס": 2.2, "שעבוד חזק עם יחס כיסוי גבוה": 1.5
     }
 
-    SENIORITY_SCORE = {"בכירה": 1.5, "רגילה": 2.8, "נחותה": 4.5}
-    COVENANT_SCORE = {"חזק": 1.8, "בינוני": 3.0, "חלש": 4.4}
-    MARKET_LIQUIDITY_SCORE = {"גבוהה": 1.8, "בינונית": 3.0, "נמוכה": 4.4}
+    SENIORITY_SCORE = {
+        "בכירה": 1.5, "רגילה": 2.8, "נחותה": 4.5
+    }
+
+    COVENANT_SCORE = {
+        "חזק": 1.8, "בינוני": 3.0, "חלש": 4.4
+    }
+
+    MARKET_LIQUIDITY_SCORE = {
+        "גבוהה": 1.8, "בינונית": 3.0, "נמוכה": 4.4
+    }
 
     LEVERAGE_THRESHOLDS_BY_SECTOR = {
-        "נדל\"ן מניב": [7.0, 9.0, 11.0, 13.0], "יזום נדל\"ן": [3.0, 5.0, 7.0, 9.0],
-        "חברת החזקות": [2.0, 3.5, 5.0, 7.0], "תעשייה/שירותים": [2.0, 3.5, 5.0, 7.0],
-        "אנרגיה/תשתיות": [3.5, 5.0, 6.5, 8.0], "פיננסים חוץ בנקאיים": [2.0, 3.0, 4.0, 5.0],
+        "נדל\"ן מניב": [7.0, 9.0, 11.0, 13.0],
+        "יזום נדל\"ן": [3.0, 5.0, 7.0, 9.0],
+        "חברת החזקות": [2.0, 3.5, 5.0, 7.0],
+        "תעשייה/שירותים": [2.0, 3.5, 5.0, 7.0],
+        "אנרגיה/תשתיות": [3.5, 5.0, 6.5, 8.0],
+        "פיננסים חוץ בנקאיים": [2.0, 3.0, 4.0, 5.0],
         "כללי": [2.5, 4.0, 5.5, 7.0],
     }
 
     COVERAGE_THRESHOLDS_BY_SECTOR = {
-        "נדל\"ן מניב": [4.0, 3.0, 2.0, 1.2], "יזום נדל\"ן": [5.0, 3.0, 1.8, 1.0],
-        "חברת החזקות": [3.0, 2.0, 1.5, 1.0], "תעשייה/שירותים": [6.0, 4.0, 2.5, 1.5],
-        "אנרגיה/תשתיות": [4.5, 3.2, 2.2, 1.4], "פיננסים חוץ בנקאיים": [3.5, 2.5, 1.8, 1.1],
+        "נדל\"ן מניב": [4.0, 3.0, 2.0, 1.2],
+        "יזום נדל\"ן": [5.0, 3.0, 1.8, 1.0],
+        "חברת החזקות": [3.0, 2.0, 1.5, 1.0],
+        "תעשייה/שירותים": [6.0, 4.0, 2.5, 1.5],
+        "אנרגיה/תשתיות": [4.5, 3.2, 2.2, 1.4],
+        "פיננסים חוץ בנקאיים": [3.5, 2.5, 1.8, 1.1],
         "כללי": [5.0, 3.0, 1.8, 1.0],
     }
 
     SPREAD_THRESHOLDS_BY_DURATION = {
-        "short": [0.8, 1.8, 3.0, 4.5], "mid": [1.2, 2.5, 4.0, 6.0], "long": [1.6, 3.0, 4.8, 7.0],
+        "short": [0.8, 1.8, 3.0, 4.5],
+        "mid": [1.2, 2.5, 4.0, 6.0],
+        "long": [1.6, 3.0, 4.8, 7.0],
     }
 
     def __init__(self, inputs: BondInputs):
@@ -217,9 +293,11 @@ class IsraeliBondAnalyzer:
 
     @staticmethod
     def score_metric(value: Optional[float], thresholds: List[float], reverse: bool = False, missing_score: float = 5.0) -> float:
-        if value is None: return missing_score
+        if value is None:
+            return missing_score
         for i, t in enumerate(thresholds):
-            if (value <= t and not reverse) or (value >= t and reverse): return float(i + 1)
+            if (value <= t and not reverse) or (value >= t and reverse):
+                return float(i + 1)
         return 5.0
 
     def build_derived_metrics(self) -> Dict[str, Optional[float]]:
@@ -442,8 +520,8 @@ def create_comparison_radar(records: List[Dict[str, Any]]) -> go.Figure:
         ),
         paper_bgcolor="rgba(0,0,0,0)",
         font=dict(color=CREAM),
-        showlegend=False, # ביטול מקרא Plotly כדי למנוע מחיקת טקסט
-        margin=dict(l=50, r=50, t=30, b=70),
+        showlegend=False, 
+        margin=dict(l=50, r=50, t=30, b=30),
     )
     return fig
 
@@ -577,22 +655,6 @@ li[role="option"] span {
 }
 .custom-table tr:hover {
     background: rgba(255,255,255,0.03);
-}
-
-/* מקרא מותאם לרדאר */
-.custom-legend {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-top: 5px;
-}
-.legend-item {
-    font-size: 0.9rem;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 5px;
 }
 </style>
 """
@@ -904,7 +966,7 @@ def main() -> None:
         else:
             with st.expander("⚙️ ניהול איגרות שמורות", expanded=False):
                 names = [r.get("name", "") for r in saved_records]
-                selected_delete = st.multiselect("בחר איגרות להסרה מהמעבדה", options=names, placeholder=" ")
+                selected_delete = st.multiselect("בחר איגרות להסרה", options=names, placeholder=" ")
 
                 c_btn1, c_btn2 = st.columns(2)
                 with c_btn1:
@@ -926,7 +988,6 @@ def main() -> None:
             st.markdown("<div class='block-title'>טבלת השוואה</div>", unsafe_allow_html=True)
             df_compare = build_compare_dataframe(saved_records)
             
-            # החלפנו את st.dataframe בטבלת HTML יפה ומותאמת לגלילה
             st.markdown("<div class='table-container'>" + df_compare.to_html(index=False, classes="custom-table") + "</div>", unsafe_allow_html=True)
 
             st.download_button(
@@ -942,13 +1003,12 @@ def main() -> None:
                 st.markdown("<div class='block-title'>השוואת פרופיל סיכון</div>", unsafe_allow_html=True)
                 st.plotly_chart(create_comparison_radar(saved_records), use_container_width=True)
                 
-                # מקרא צבעים מותאם וחיצוני (ללא הקו שמוחק את המילים)
                 palette = [GOLD, "#C0392B", "#2980B9", "#27AE60", "#8E44AD", "#E67E22", "#16A085"]
-                legend_html = "<div class='custom-legend'>"
+                legend_html = "<div style='display: flex; justify-content: center; flex-wrap: wrap; gap: 15px; margin-top: 5px;'>"
                 for idx, record in enumerate(saved_records):
                     color = palette[idx % len(palette)]
                     bond_name_legend = record.get("name", f"איגרת {idx + 1}")
-                    legend_html += f"<div class='legend-item' style='color:{color};'><span style='font-size:1.5rem;'>■</span> {bond_name_legend}</div>"
+                    legend_html += f"<div style='display: flex; align-items: center; gap: 8px;'><span style='color:{color} !important; font-size:1.5rem;'>■</span> <span style='color: var(--cream) !important; font-size: 1rem; font-weight: bold;'>{bond_name_legend}</span></div>"
                 legend_html += "</div>"
                 st.markdown(legend_html, unsafe_allow_html=True)
 
